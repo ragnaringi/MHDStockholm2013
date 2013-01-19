@@ -2,6 +2,7 @@ from pyechonest import config
 import echonest.remix.audio as audio
 
 import argparse
+import json
 import os
 
 #API key for echonest
@@ -18,9 +19,20 @@ parser.add_argument('-destination', dest="dest_folder",
 
 args = parser.parse_args()
 outputIndex = 0;
+
+
+
 print "Analysing files in folder : " + args.source_folder
 
 PITCH_LOOKUP = ["A", "Bb", "B", "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab"]
+
+outputlist = {}
+i = 0
+while i < len(PITCH_LOOKUP):
+	pitchName = PITCH_LOOKUP[i]
+	outputlist[pitchName] = []
+	i += 1
+
 
 
 def analyseFiles():
@@ -33,6 +45,7 @@ def analyseFiles():
 def processSegment(aSegment):
 	
 	global outputIndex
+	global outputlist
 
 	note = ""
 	otherPitchAverageStrength = 0
@@ -51,9 +64,11 @@ def processSegment(aSegment):
 	if (avg < 0.1):
 		if (aSegment.duration > 0.5):
 			print ("found suitable sample, note : " + note)
-			newFileName = "sample_" + note + "_" + str(outputIndex) + ".mp3"
+			newFileName = "sample_" + note + "_" + str(outputIndex) + ".wav"
 			aSegment.encode(os.path.abspath(os.path.join(args.dest_folder, newFileName)))
 			outputIndex += 1
+			outputlist[note].append(newFileName)
+
 
 
 
@@ -89,6 +104,10 @@ def absoluteFilePaths(directory):
            yield os.path.abspath(os.path.join(dirpath, f))
 
 
-
 analyseFiles()
+
+sampleListJSON = json.dumps(outputlist)
+f = open(os.path.join(args.dest_folder, "samples.json"), 'w')
+f.write(sampleListJSON)
+f.close()
 
