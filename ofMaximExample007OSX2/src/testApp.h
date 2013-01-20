@@ -28,18 +28,22 @@ class testApp : public ofBaseApp{
 		int		initialBufferSize; /* buffer size */
 		int		sampleRate;
 	
-	
 		/* stick you maximilian stuff below */
 	
 		double leftOutput, rightOutput ,outputs[2];
         double outVolume;
-		ofxMaxiMix mymix;
+        double cutoff;
+        double resonance;
+        int delayTime;
+		
+        ofxMaxiSample sample;
+        ofxMaxiMix mymix;
         maxiEnv env;
-		ofxMaxiSample sample;
+        maxiDelayline delay;
+        maxiEnvelope myEnvelope;
+        maxiFilter myFilter;
     
         int sampleNumber;
         bool playSample;
         vector<ofFile>samplePaths;
-	
-		
 };

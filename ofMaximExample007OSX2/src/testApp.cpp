@@ -11,7 +11,10 @@
 
 
 double myEnvelopeData[8] = {0,0,1,500,1,500,0,500};//this data will be used to make an envelope. Value and time to value in ms.
-maxiEnvelope myEnvelope;
+
+// Vector with allowed key values
+static const int keys[12] = {97,115,100,102,103,104,106,107,108,59,39,92};
+vector<int> vec (keys, keys + sizeof(keys) / sizeof(keys[0]) );
 
 
 //-------------------------------------------------------------
@@ -53,6 +56,9 @@ void testApp::setup(){
     playSample = false;
     
     myEnvelope.amplitude=myEnvelopeData[0]; //initialise the envelope
+    
+    cutoff = 0.9;
+    delayTime = 1;
     
 	ofSoundStreamSetup(2,0,this, sampleRate, initialBufferSize, 4);/* Call this last ! */
 }
@@ -111,9 +117,12 @@ void testApp::audioRequested 	(float * output, int bufferSize, int nChannels){
             playSample = true;
         }
         
+        leftOutput = myFilter.lores(leftOutput, cutoff, 4.0);
         leftOutput *= outVolume;
         
-		mymix.stereo(leftOutput, outputs, 0.5);
+        double delayOut = delay.dl(leftOutput, sample.length/delayTime, 0.9);
+        
+		mymix.stereo(leftOutput + delayOut, outputs, 0.5);
 		
 		output[i*nChannels    ] = outputs[0]; /* You may end up with lots of outputs. add them here */
 		output[i*nChannels + 1] = outputs[1];
@@ -122,23 +131,26 @@ void testApp::audioRequested 	(float * output, int bufferSize, int nChannels){
 }
 
 //--------------------------------------------------------------
-void testApp::audioReceived 	(float * input, int bufferSize, int nChannels){	
-	
+void testApp::audioReceived (float * input, int bufferSize, int nChannels){	
 	
 	/* You can just grab this input and stick it in a double, then use it above to create output*/
 	
 	for (int i = 0; i < bufferSize; i++){
 		
 		/* you can also grab the data out of the arrays*/
-		
-		
 	}
 	
 }
 
 //--------------------------------------------------------------
 void testApp::keyPressed(int key){
-	
+    
+    int selected;
+	if (std::find(vec.begin(), vec.end(), key) != vec.end())
+    {
+        selected = key;
+        cout << "key: " << selected << endl;
+    }
 }
 
 //--------------------------------------------------------------
@@ -149,8 +161,9 @@ void testApp::keyReleased(int key){
 //--------------------------------------------------------------
 void testApp::mouseMoved(int x, int y ){
 	
-	
-	
+    cutoff = ofMap(y, 0, ofGetHeight(), 20000.0, 150.0);
+    resonance = ofMap(y, 0, ofGetHeight(), 1.0, 4.0);
+    delayTime = (int)ofMap(y, 0, ofGetHeight(), 1.0, 10.0);
 }
 
 //--------------------------------------------------------------
