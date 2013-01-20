@@ -12,9 +12,9 @@ config.ECHO_NEST_API_KEY="NMF6CJHDHHDFGO0E8"
 
 #get the folder in which our samples come from
 parser = argparse.ArgumentParser(description='Analyse a folder of files.')
-parser.add_argument('-source', dest="source_folder",
+parser.add_argument('-s', dest="source_folder",
                    help='a folder containing audio files to analyse')
-parser.add_argument('-destination', dest="dest_folder",
+parser.add_argument('-d', dest="dest_folder",
                    help='a folder where the audio files are output')
 
 
@@ -69,7 +69,7 @@ class SampleReference:
 def analyseFiles():
 	paths = absoluteFilePaths(args.source_folder)
 	for path in paths:
-		if path.endswith(".mp3"):
+		if path.endswith(".mp3") or path.endswith(".wav"):
 			processFile(path)
 
 
@@ -114,7 +114,7 @@ def processSegment(aSegment):
 
 	avg /= 11
 
-	if (avg < 0.1) and (aSegment.duration > 0.5) and (aSegment.loudness_max > -20):
+	if (avg < 0.2) and (aSegment.duration > 0.5) and (aSegment.loudness_max > -40):
 			print ("found suitable sample, note : " + note)
 			
 			if ((aSegment.duration / aSegment.time_loudness_max) > 0.25 and (aSegment.loudness_max / aSegment.loudness_begin) < 0.8):
