@@ -59,7 +59,7 @@ class SampleReference:
 		noteFolder = self.note
 		destinatonFolder = os.path.abspath(os.path.join(args.dest_folder, noteFolder))
 
-		self.filename = "sample_" + self.note + "_" + str(aIndex) + ".wav"
+		self.filename = "sample_" + self.note + "_" + str(aIndex).zfill(3) + ".wav"
 		destination = os.path.abspath(os.path.join(args.dest_folder + "/" + self.note + "/", self.filename))
 		print("saving to path : " + destination)
 		self.segment.encode(destination)
@@ -173,6 +173,11 @@ def exportFiles():
 			index += 1
 
 
+def FFTGroupFiles():
+	for noteFolder in PITCH_LOOKUP:
+		noteFolderPath = os.path.join(args.dest_folder, noteFolder)
+		print("grouping files in " + noteFolderPath)
+		os.system("python fftGroupSamples.py -s " + noteFolderPath)
 
 
 
@@ -185,6 +190,8 @@ def absoluteFilePaths(directory):
 analyseFiles()
 sortSimilarSamples()
 exportFiles()
+
+FFTGroupFiles()
 
 sampleListJSON = json.dumps(outputlist)
 f = open(os.path.join(args.dest_folder, "samples.json"), 'w')

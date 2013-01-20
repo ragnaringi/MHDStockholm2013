@@ -153,7 +153,7 @@ def splitNoteGroups(aGroup):
 	
 	
 	for noteFFT in noteAnalysis:
-		os.rename(noteFFT.path, noteFFT.path.replace(".wav", "_" + str(noteFFT.group) + ".wav"))
+		os.rename(noteFFT.path, noteFFT.path.replace("sample_", "group_" + str(noteFFT.group) + "_sample_"))
 		
 	
 
