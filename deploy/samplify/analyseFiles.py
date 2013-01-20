@@ -51,11 +51,18 @@ class SampleReference:
 
 	def exportFile(self, aAudioFile, aIndex):
 
+		global args
+
 		#mark = str(int(self.segment.timbre[0])) + "_" + str(int(self.segment.timbre[1])) + "_" + str(int(self.segment.timbre[2]))
 		mark = str(int(self.seg_distance))
 
+		noteFolder = self.note
+		destinatonFolder = os.path.abspath(os.path.join(args.dest_folder, noteFolder))
+
 		self.filename = "sample_" + self.note + "_" + str(aIndex) + ".wav"
-		self.segment.encode(os.path.abspath(os.path.join(args.dest_folder, self.filename)))
+		destination = os.path.abspath(os.path.join(args.dest_folder + "/" + self.note + "/", self.filename))
+		print("saving to path : " + destination)
+		self.segment.encode(destination)
 
 
 
