@@ -24,6 +24,10 @@ class testApp : public ofBaseApp{
 	
 		void audioRequested 	(float * input, int bufferSize, int nChannels); /* output method */
 		void audioReceived 	(float * input, int bufferSize, int nChannels); /* input method */
+    
+        int selectedKey;
+        void playNote (string key, int index);
+        void loadNote (string key, int index);
 	
 		int		initialBufferSize; /* buffer size */
 		int		sampleRate;
@@ -32,11 +36,16 @@ class testApp : public ofBaseApp{
 	
 		double leftOutput, rightOutput ,outputs[2];
         double outVolume;
+    
+        int playbackLenght;
+        double playbackSpeed;
         double cutoff;
         double resonance;
         int delayTime;
+        string currentSamplePath;
 		
-        ofxMaxiSample sample;
+        ofxMaxiSample sample[11];
+        ofxMaxiSample *currentSample;
         ofxMaxiMix mymix;
         maxiEnv env;
         maxiDelayline delay;
