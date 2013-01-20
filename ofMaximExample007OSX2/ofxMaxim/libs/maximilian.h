@@ -114,12 +114,13 @@ class maxiDelayline {
 	double startphase;
 	double endphase;
 	double output;
-	double memory[88200];
+//	double memory[88200];
 	
 public:
 	maxiDelayline();
 	double dl(double input, int size, double feedback);
 	double dl(double input, int size, double feedback, int position);
+    double memory[88200];
 	
 	
 };
@@ -166,7 +167,7 @@ public:
 class maxiSample  {
 	
 private:
-	string 	myPath;
+//	string 	myPath;
 	int 	myChunkSize;
 	int	mySubChunk1Size;
 	int		readChannel;
@@ -179,6 +180,7 @@ private:
 	double output;
 	
 public:
+    string 	myPath; //NOTE(Ragnar): need to get path out
 	int	myDataSize;
 	short 	myChannels;
 	int   	mySampleRate;
