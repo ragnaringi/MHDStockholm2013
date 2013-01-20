@@ -13,8 +13,8 @@
 double myEnvelopeData[8] = {0,0,1,500,1,500,0,500};//this data will be used to make an envelope. Value and time to value in ms.
 
 // Vector with allowed key values
-static const int keys[12] = {97,115,100,102,103,104,106,107,108,59,39,92};
-vector<int> vec (keys, keys + sizeof(keys) / sizeof(keys[0]) );
+static const int keyValues[12] = {97,115,100,102,103,104,106,107,108,59,39,92};
+vector<int> keys (keyValues, keyValues + sizeof(keyValues) / sizeof(keyValues[0]) );
 
 
 //-------------------------------------------------------------
@@ -52,11 +52,9 @@ void testApp::setup(){
     samplePaths = dir.getFiles();
     
     sampleNumber = 0;
-	
     playSample = false;
     
     myEnvelope.amplitude=myEnvelopeData[0]; //initialise the envelope
-    
     cutoff = 0.9;
     delayTime = 1;
     
@@ -145,12 +143,21 @@ void testApp::audioReceived (float * input, int bufferSize, int nChannels){
 //--------------------------------------------------------------
 void testApp::keyPressed(int key){
     
-    int selected;
-	if (std::find(vec.begin(), vec.end(), key) != vec.end())
+    int selected = -1;
+    int index = -1;
+	if (std::find(keys.begin(), keys.end(), key) != keys.end())
     {
+        
         selected = key;
-        cout << "key: " << selected << endl;
+        // find the index of key on keyboard
+        for (size_t i = 0; i < keys.size(); i++)
+        {
+            if (keys[i] == key)
+                index = (int)i;
+        }
     }
+    
+    cout << "key: " << selected << " is number: " << index << endl;
 }
 
 //--------------------------------------------------------------
