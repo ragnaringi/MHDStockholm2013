@@ -1,0 +1,38 @@
+.DS_Store
+.settings
+.project
+_notes
+
+*.sublime-project
+*.sublime-workspace
+
+# wave files
+.wav
+
+# global ignores
+*.tmproj
+*.svn
+.svn
+*.pyc
+
+# fileMerge
+*.orig
+
+# OS specific files
+
+# OS X
+
+*.DS_Store
+
+# Files that might appear on external disk
+.Spotlight-V100
+.Trashes
+
+# Windows image file caches
+Thumbs.db
+
+# Folder config file
+Desktop.ini
+.sass-cache
+compass.txt
+note.txt
