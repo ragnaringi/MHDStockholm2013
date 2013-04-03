@@ -6,8 +6,9 @@ _notes
 *.sublime-project
 *.sublime-workspace
 
-# wave files
-.wav
+# wave & mp3 files
+*.wav
+*.mp3
 
 # global ignores
 *.tmproj
@@ -36,3 +37,5 @@ Desktop.ini
 .sass-cache
 compass.txt
 note.txt
+/assets/samples/Skrillex/E/sample_E_21.wav
+/fridayBeersPresentation/
