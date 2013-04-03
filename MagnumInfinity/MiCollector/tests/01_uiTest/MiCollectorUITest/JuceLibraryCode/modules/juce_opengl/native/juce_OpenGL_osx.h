@@ -23,100 +23,12 @@
   ==============================================================================
 */
 
-} // (juce namespace)
-
-#define ThreadSafeNSOpenGLView MakeObjCClassName(ThreadSafeNSOpenGLView)
-
-//==============================================================================
-@interface ThreadSafeNSOpenGLView  : NSOpenGLView
-{
-    juce::CriticalSection* contextLock;
-    bool needsUpdate;
-}
-
-- (id) initWithFrame: (NSRect) frameRect pixelFormat: (NSOpenGLPixelFormat*) format;
-- (bool) makeActive;
-- (void) reshape;
-- (void) rightMouseDown: (NSEvent*) ev;
-- (void) rightMouseUp: (NSEvent*) ev;
-@end
-
-@implementation ThreadSafeNSOpenGLView
-
-- (id) initWithFrame: (NSRect) frameRect
-         pixelFormat: (NSOpenGLPixelFormat*) format
-{
-    contextLock = new juce::CriticalSection();
-    self = [super initWithFrame: frameRect pixelFormat: format];
-    needsUpdate = true;
-
-    if (self != nil)
-        [[NSNotificationCenter defaultCenter] addObserver: self
-                                                 selector: @selector (_surfaceNeedsUpdate:)
-                                                     name: NSViewGlobalFrameDidChangeNotification
-                                                   object: self];
-    return self;
-}
-
-- (void) dealloc
-{
-    [[NSNotificationCenter defaultCenter] removeObserver: self];
-    delete contextLock;
-    [super dealloc];
-}
-
-- (bool) makeActive
-{
-    const juce::ScopedLock sl (*contextLock);
-
-    if ([self openGLContext] == nil)
-        return false;
-
-    [[self openGLContext] makeCurrentContext];
-
-    if (needsUpdate)
-    {
-        [super update];
-        needsUpdate = false;
-    }
-
-    return true;
-}
-
-- (void) _surfaceNeedsUpdate: (NSNotification*) notification
-{
-    (void) notification;
-    const juce::ScopedLock sl (*contextLock);
-    needsUpdate = true;
-}
-
-- (void) update
-{
-    const juce::ScopedLock sl (*contextLock);
-    needsUpdate = true;
-}
-
-- (void) reshape
-{
-    const juce::ScopedLock sl (*contextLock);
-    needsUpdate = true;
-}
-
-- (void) rightMouseDown: (NSEvent*) ev  { [[self superview] rightMouseDown: ev]; }
-- (void) rightMouseUp:   (NSEvent*) ev  { [[self superview] rightMouseUp:   ev]; }
-
-@end
-
-namespace juce
-{
-
-//==============================================================================
 class OpenGLContext::NativeContext
 {
 public:
     NativeContext (Component& component,
-                   const OpenGLPixelFormat& pixelFormat,
-                   const NativeContext* contextToShareWith)
+                   const OpenGLPixelFormat& pixFormat,
+                   void* contextToShare)
     {
         NSOpenGLPixelFormatAttribute attribs[] =
         {
@@ -124,29 +36,35 @@ public:
             NSOpenGLPFAMPSafe,
             NSOpenGLPFAClosestPolicy,
             NSOpenGLPFANoRecovery,
-            NSOpenGLPFAColorSize,   (NSOpenGLPixelFormatAttribute) (pixelFormat.redBits + pixelFormat.greenBits + pixelFormat.blueBits),
-            NSOpenGLPFAAlphaSize,   (NSOpenGLPixelFormatAttribute) pixelFormat.alphaBits,
-            NSOpenGLPFADepthSize,   (NSOpenGLPixelFormatAttribute) pixelFormat.depthBufferBits,
-            NSOpenGLPFAStencilSize, (NSOpenGLPixelFormatAttribute) pixelFormat.stencilBufferBits,
-            NSOpenGLPFAAccumSize,   (NSOpenGLPixelFormatAttribute) (pixelFormat.accumulationBufferRedBits + pixelFormat.accumulationBufferGreenBits
-                                        + pixelFormat.accumulationBufferBlueBits + pixelFormat.accumulationBufferAlphaBits),
-            pixelFormat.multisamplingLevel > 0 ? NSOpenGLPFASamples : (NSOpenGLPixelFormatAttribute) 0,
-            (NSOpenGLPixelFormatAttribute) pixelFormat.multisamplingLevel,
+            NSOpenGLPFAColorSize,   (NSOpenGLPixelFormatAttribute) (pixFormat.redBits + pixFormat.greenBits + pixFormat.blueBits),
+            NSOpenGLPFAAlphaSize,   (NSOpenGLPixelFormatAttribute) pixFormat.alphaBits,
+            NSOpenGLPFADepthSize,   (NSOpenGLPixelFormatAttribute) pixFormat.depthBufferBits,
+            NSOpenGLPFAStencilSize, (NSOpenGLPixelFormatAttribute) pixFormat.stencilBufferBits,
+            NSOpenGLPFAAccumSize,   (NSOpenGLPixelFormatAttribute) (pixFormat.accumulationBufferRedBits + pixFormat.accumulationBufferGreenBits
+                                        + pixFormat.accumulationBufferBlueBits + pixFormat.accumulationBufferAlphaBits),
+            pixFormat.multisamplingLevel > 0 ? NSOpenGLPFASamples : (NSOpenGLPixelFormatAttribute) 0,
+            (NSOpenGLPixelFormatAttribute) pixFormat.multisamplingLevel,
             0
         };
 
         NSOpenGLPixelFormat* format = [[NSOpenGLPixelFormat alloc] initWithAttributes: attribs];
 
-        view = [[ThreadSafeNSOpenGLView alloc] initWithFrame: NSMakeRect (0, 0, 100.0f, 100.0f)
-                                                 pixelFormat: format];
+        static MouseForwardingNSOpenGLViewClass cls;
+        view = [cls.createInstance() initWithFrame: NSMakeRect (0, 0, 100.0f, 100.0f)
+                                       pixelFormat: format];
 
-        NSOpenGLContext* const sharedContext
-            = contextToShareWith != nullptr ? contextToShareWith->renderContext : nil;
+       #if defined (MAC_OS_X_VERSION_10_7) && (MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_7)
+        if ([view respondsToSelector: @selector (setWantsBestResolutionOpenGLSurface:)])
+            [view setWantsBestResolutionOpenGLSurface: YES];
+       #endif
+
+        [[NSNotificationCenter defaultCenter] addObserver: view
+                                                 selector: @selector (_surfaceNeedsUpdate:)
+                                                     name: NSViewGlobalFrameDidChangeNotification
+                                                   object: view];
 
         renderContext = [[[NSOpenGLContext alloc] initWithFormat: format
-                                                    shareContext: sharedContext] autorelease];
-
-        setSwapInterval (1);
+                                                    shareContext: (NSOpenGLContext*) contextToShare] autorelease];
 
         [view setOpenGLContext: renderContext];
         [format release];
@@ -156,14 +74,15 @@ public:
 
     ~NativeContext()
     {
+        [[NSNotificationCenter defaultCenter] removeObserver: view];
         [renderContext clearDrawable];
         [renderContext setView: nil];
         [view setOpenGLContext: nil];
         renderContext = nil;
     }
 
-    void initialiseOnRenderThread() {}
-    void shutdownOnRenderThread() {}
+    void initialiseOnRenderThread (OpenGLContext&) {}
+    void shutdownOnRenderThread()               { deactivateCurrentContext(); }
 
     bool createdOk() const noexcept             { return getRawContext() != nullptr; }
     void* getRawContext() const noexcept        { return static_cast <void*> (renderContext); }
@@ -176,13 +95,23 @@ public:
         if ([renderContext view] != view)
             [renderContext setView: view];
 
-        [view makeActive];
-        return true;
+        if (NSOpenGLContext* context = [view openGLContext])
+        {
+            [context makeCurrentContext];
+            return true;
+        }
+
+        return false;
     }
 
     bool isActive() const noexcept
     {
         return [NSOpenGLContext currentContext] == renderContext;
+    }
+
+    static void deactivateCurrentContext()
+    {
+        [NSOpenGLContext clearCurrentContext];
     }
 
     struct Locker
@@ -224,12 +153,30 @@ public:
         return numFrames;
     }
 
-private:
     NSOpenGLContext* renderContext;
-    ThreadSafeNSOpenGLView* view;
+    NSOpenGLView* view;
     ReferenceCountedObjectPtr<ReferenceCountedObject> viewAttachment;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NativeContext);
+    //==============================================================================
+    struct MouseForwardingNSOpenGLViewClass  : public ObjCClass <NSOpenGLView>
+    {
+        MouseForwardingNSOpenGLViewClass()  : ObjCClass <NSOpenGLView> ("JUCEGLView_")
+        {
+            addMethod (@selector (rightMouseDown:),      rightMouseDown,     "v@:@");
+            addMethod (@selector (rightMouseUp:),        rightMouseUp,       "v@:@");
+            addMethod (@selector (acceptsFirstMouse:),   acceptsFirstMouse,  "v@:@");
+
+            registerClass();
+        }
+
+    private:
+        static void rightMouseDown (id self, SEL, NSEvent* ev)      { [[(NSOpenGLView*) self superview] rightMouseDown: ev]; }
+        static void rightMouseUp   (id self, SEL, NSEvent* ev)      { [[(NSOpenGLView*) self superview] rightMouseUp:   ev]; }
+        static BOOL acceptsFirstMouse (id, SEL, NSEvent*)           { return YES; }
+    };
+
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NativeContext)
 };
 
 //==============================================================================

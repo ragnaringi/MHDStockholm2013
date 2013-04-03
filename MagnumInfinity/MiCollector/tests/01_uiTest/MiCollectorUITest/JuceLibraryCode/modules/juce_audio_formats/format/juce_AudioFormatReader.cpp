@@ -23,15 +23,14 @@
   ==============================================================================
 */
 
-AudioFormatReader::AudioFormatReader (InputStream* const in,
-                                      const String& formatName_)
+AudioFormatReader::AudioFormatReader (InputStream* const in, const String& name)
     : sampleRate (0),
       bitsPerSample (0),
       lengthInSamples (0),
       numChannels (0),
       usesFloatingPointData (false),
       input (in),
-      formatName (formatName_)
+      formatName (name)
 {
 }
 
@@ -141,9 +140,7 @@ void AudioFormatReader::read (AudioSampleBuffer* buffer,
         {
             for (int j = 0; j < 2; ++j)
             {
-                float* const d = reinterpret_cast <float*> (chans[j]);
-
-                if (d != nullptr)
+                if (float* const d = reinterpret_cast <float*> (chans[j]))
                 {
                     const float multiplier = 1.0f / 0x7fffffff;
 
@@ -163,8 +160,40 @@ void AudioFormatReader::read (AudioSampleBuffer* buffer,
     }
 }
 
-void AudioFormatReader::readMaxLevels (int64 startSampleInFile,
-                                       int64 numSamples,
+template <typename SampleType>
+static inline void getChannelMinAndMax (SampleType* channel, const int numSamples, SampleType& mn, SampleType& mx)
+{
+    findMinAndMax (channel, numSamples, mn, mx);
+}
+
+static inline void getChannelMinAndMax (float* channel, const int numSamples, float& mn, float& mx)
+{
+    FloatVectorOperations::findMinAndMax (channel, numSamples, mn, mx);
+}
+
+template <typename SampleType>
+static void getStereoMinAndMax (SampleType* const* channels, const int numChannels, const int numSamples,
+                                SampleType& lmin, SampleType& lmax, SampleType& rmin, SampleType& rmax)
+{
+    SampleType bufMin, bufMax;
+    getChannelMinAndMax (channels[0], numSamples, bufMin, bufMax);
+    lmax = jmax (lmax, bufMax);
+    lmin = jmin (lmin, bufMin);
+
+    if (numChannels > 1)
+    {
+        getChannelMinAndMax (channels[1], numSamples, bufMin, bufMax);
+        rmax = jmax (rmax, bufMax);
+        rmin = jmin (rmin, bufMin);
+    }
+    else
+    {
+        rmax = lmax;
+        rmin = lmin;
+    }
+}
+
+void AudioFormatReader::readMaxLevels (int64 startSampleInFile, int64 numSamples,
                                        float& lowestLeft, float& highestLeft,
                                        float& lowestRight, float& highestRight)
 {
@@ -178,12 +207,10 @@ void AudioFormatReader::readMaxLevels (int64 startSampleInFile,
     }
 
     const int bufferSize = (int) jmin (numSamples, (int64) 4096);
-    HeapBlock<int> tempSpace ((size_t) bufferSize * 2 + 64);
+    AudioSampleBuffer tempSampleBuffer ((int) numChannels, bufferSize);
 
-    int* tempBuffer[3];
-    tempBuffer[0] = tempSpace.getData();
-    tempBuffer[1] = tempSpace.getData() + bufferSize;
-    tempBuffer[2] = 0;
+    float** const floatBuffer = tempSampleBuffer.getArrayOfChannels();
+    int* const* intBuffer = reinterpret_cast<int* const*> (floatBuffer);
 
     if (usesFloatingPointData)
     {
@@ -195,28 +222,12 @@ void AudioFormatReader::readMaxLevels (int64 startSampleInFile,
         while (numSamples > 0)
         {
             const int numToDo = (int) jmin (numSamples, (int64) bufferSize);
-            read (tempBuffer, 2, startSampleInFile, numToDo, false);
+            if (! read (intBuffer, 2, startSampleInFile, numToDo, false))
+                break;
 
             numSamples -= numToDo;
             startSampleInFile += numToDo;
-
-            float bufMin, bufMax;
-            findMinAndMax (reinterpret_cast<float*> (tempBuffer[0]), numToDo, bufMin, bufMax);
-            lmin = jmin (lmin, bufMin);
-            lmax = jmax (lmax, bufMax);
-
-            if (numChannels > 1)
-            {
-                findMinAndMax (reinterpret_cast<float*> (tempBuffer[1]), numToDo, bufMin, bufMax);
-                rmin = jmin (rmin, bufMin);
-                rmax = jmax (rmax, bufMax);
-            }
-        }
-
-        if (numChannels <= 1)
-        {
-            rmax = lmax;
-            rmin = lmin;
+            getStereoMinAndMax (floatBuffer, (int) numChannels, numToDo, lmin, lmax, rmin, rmax);
         }
 
         lowestLeft   = lmin;
@@ -234,34 +245,12 @@ void AudioFormatReader::readMaxLevels (int64 startSampleInFile,
         while (numSamples > 0)
         {
             const int numToDo = (int) jmin (numSamples, (int64) bufferSize);
-            if (! read (tempBuffer, 2, startSampleInFile, numToDo, false))
+            if (! read (intBuffer, 2, startSampleInFile, numToDo, false))
                 break;
 
             numSamples -= numToDo;
             startSampleInFile += numToDo;
-
-            for (int j = (int) numChannels; --j >= 0;)
-            {
-                int bufMin, bufMax;
-                findMinAndMax (tempBuffer[j], numToDo, bufMin, bufMax);
-
-                if (j == 0)
-                {
-                    lmax = jmax (lmax, bufMax);
-                    lmin = jmin (lmin, bufMin);
-                }
-                else
-                {
-                    rmax = jmax (rmax, bufMax);
-                    rmin = jmin (rmin, bufMin);
-                }
-            }
-        }
-
-        if (numChannels <= 1)
-        {
-            rmax = lmax;
-            rmin = lmin;
+            getStereoMinAndMax (intBuffer, (int) numChannels, numToDo, lmin, lmax, rmin, rmax);
         }
 
         lowestLeft   = lmin / (float) std::numeric_limits<int>::max();
@@ -385,4 +374,57 @@ int64 AudioFormatReader::searchForLevel (int64 startSample,
     }
 
     return -1;
+}
+
+//==============================================================================
+MemoryMappedAudioFormatReader::MemoryMappedAudioFormatReader (const File& f, const AudioFormatReader& reader,
+                                                              int64 start, int64 length, int frameSize)
+    : AudioFormatReader (nullptr, reader.getFormatName()), file (f),
+      dataChunkStart (start), dataLength (length), bytesPerFrame (frameSize)
+{
+    sampleRate      = reader.sampleRate;
+    bitsPerSample   = reader.bitsPerSample;
+    lengthInSamples = reader.lengthInSamples;
+    numChannels     = reader.numChannels;
+    metadataValues  = reader.metadataValues;
+    usesFloatingPointData = reader.usesFloatingPointData;
+}
+
+bool MemoryMappedAudioFormatReader::mapEntireFile()
+{
+    return mapSectionOfFile (Range<int64> (0, lengthInSamples));
+}
+
+bool MemoryMappedAudioFormatReader::mapSectionOfFile (const Range<int64>& samplesToMap)
+{
+    if (map == nullptr || samplesToMap != mappedSection)
+    {
+        map = nullptr;
+
+        const Range<int64> fileRange (sampleToFilePos (samplesToMap.getStart()),
+                                      sampleToFilePos (samplesToMap.getEnd()));
+
+        map = new MemoryMappedFile (file, fileRange, MemoryMappedFile::readOnly);
+
+        if (map->getData() == nullptr)
+            map = nullptr;
+        else
+            mappedSection = Range<int64> (jmax ((int64) 0, filePosToSample (map->getRange().getStart() + (bytesPerFrame - 1))),
+                                          jmin (lengthInSamples, filePosToSample (map->getRange().getEnd())));
+    }
+
+    return map != nullptr;
+}
+
+void MemoryMappedAudioFormatReader::touchSample (int64 sample) const noexcept
+{
+    if (map != nullptr && mappedSection.contains (sample))
+    {
+        static int dummy = 0; // to force the compiler not to optimise this stuff away
+        dummy += *(int*) sampleToPointer (sample);
+    }
+    else
+    {
+        jassertfalse; // you must make sure that the window contains all the samples you're going to attempt to read.
+    }
 }

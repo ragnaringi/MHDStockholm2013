@@ -63,7 +63,7 @@ public:
         @param numSamples       the number of samples to use - this must correspond to the
                                 size of the arrays passed in
     */
-    AudioSampleBuffer (float** dataToReferTo,
+    AudioSampleBuffer (float* const* dataToReferTo,
                        int numChannels,
                        int numSamples) noexcept;
 
@@ -83,7 +83,7 @@ public:
         @param numSamples       the number of samples to use - this must correspond to the
                                 size of the arrays passed in
     */
-    AudioSampleBuffer (float** dataToReferTo,
+    AudioSampleBuffer (float* const* dataToReferTo,
                        int numChannels,
                        int startSample,
                        int numSamples) noexcept;
@@ -241,6 +241,9 @@ public:
                     int numSamples,
                     float gain) noexcept;
 
+    /** Applies a gain multiple to all the audio data. */
+    void applyGain (float gain) noexcept;
+
     /** Applies a range of gains to a region of a channel.
 
         The gain that is applied to each sample will vary from
@@ -252,6 +255,20 @@ public:
     */
     void applyGainRamp (int channel,
                         int startSample,
+                        int numSamples,
+                        float startGain,
+                        float endGain) noexcept;
+
+    /** Applies a range of gains to a region of all channels.
+
+        The gain that is applied to each sample will vary from
+        startGain on the first sample to endGain on the last Sample,
+        so it can be used to do basic fades.
+
+        For speed, this doesn't check whether the sample numbers
+        are in-range, so be careful!
+    */
+    void applyGainRamp (int startSample,
                         int numSamples,
                         float startGain,
                         float endGain) noexcept;
@@ -421,9 +438,9 @@ private:
     float* preallocatedChannelSpace [32];
 
     void allocateData();
-    void allocateChannels (float** dataToReferTo, int offset);
+    void allocateChannels (float* const* dataToReferTo, int offset);
 
-    JUCE_LEAK_DETECTOR (AudioSampleBuffer);
+    JUCE_LEAK_DETECTOR (AudioSampleBuffer)
 };
 
 

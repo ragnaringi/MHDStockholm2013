@@ -53,6 +53,14 @@
  #include <winsock2.h>
  #include <ws2tcpip.h>
 
+ #if ! JUCE_MINGW
+  #include <Dbghelp.h>
+
+  #if ! JUCE_DONT_AUTOLINK_TO_WIN32_LIBRARIES
+   #pragma comment (lib, "DbgHelp.lib")
+  #endif
+ #endif
+
  #if JUCE_MINGW
   #include <ws2spi.h>
  #endif
@@ -66,16 +74,25 @@
   #include <netinet/in.h>
  #endif
 
+ #if JUCE_LINUX
+  #include <langinfo.h>
+ #endif
+
  #include <pwd.h>
  #include <fcntl.h>
  #include <netdb.h>
  #include <arpa/inet.h>
  #include <netinet/tcp.h>
  #include <sys/time.h>
+
+ #if ! JUCE_ANDROID
+  #include <execinfo.h>
+ #endif
 #endif
 
 #if JUCE_MAC || JUCE_IOS
  #include <xlocale.h>
+ #include <mach/mach.h>
 #endif
 
 #if JUCE_ANDROID
@@ -87,9 +104,6 @@
 namespace juce
 {
 
-// START_AUTOINCLUDE containers/*.cpp, files/*.cpp, json/*.cpp, logging/*.cpp, maths/*.cpp,
-// memory/*.cpp, misc/*.cpp, network/*.cpp, streams/*.cpp, system/*.cpp, text/*.cpp, threads/*.cpp,
-// time/*.cpp, unit_tests/*.cpp, xml/*.cpp, zip/juce_GZIPD*.cpp, zip/juce_GZIPC*.cpp, zip/juce_Zip*.cpp
 #include "containers/juce_AbstractFifo.cpp"
 #include "containers/juce_DynamicObject.cpp"
 #include "containers/juce_NamedValueSet.cpp"
@@ -129,6 +143,7 @@ namespace juce
 #include "text/juce_StringArray.cpp"
 #include "text/juce_StringPairArray.cpp"
 #include "text/juce_StringPool.cpp"
+#include "text/juce_TextDiff.cpp"
 #include "threads/juce_ChildProcess.cpp"
 #include "threads/juce_ReadWriteLock.cpp"
 #include "threads/juce_Thread.cpp"
@@ -143,12 +158,10 @@ namespace juce
 #include "zip/juce_GZIPDecompressorInputStream.cpp"
 #include "zip/juce_GZIPCompressorOutputStream.cpp"
 #include "zip/juce_ZipFile.cpp"
-// END_AUTOINCLUDE
 
 //==============================================================================
 #if JUCE_MAC || JUCE_IOS
 #include "native/juce_osx_ObjCHelpers.h"
-#include "native/juce_mac_ObjCSuffix.h"
 #endif
 
 #if JUCE_ANDROID
@@ -193,4 +206,7 @@ namespace juce
 #include "native/juce_android_Threads.cpp"
 
 #endif
+
+#include "threads/juce_HighResolutionTimer.cpp"
+
 }

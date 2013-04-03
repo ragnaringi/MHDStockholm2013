@@ -29,37 +29,49 @@ void LookAndFeel::playAlertSound()
 }
 
 //==============================================================================
-class OSXMessageBox  : public AsyncUpdater
+class OSXMessageBox  : private AsyncUpdater
 {
 public:
-    OSXMessageBox (AlertWindow::AlertIconType iconType_,
-                   const String& title_, const String& message_,
-                   NSString* button1_, NSString* button2_, NSString* button3_,
-                   ModalComponentManager::Callback* callback_,
-                   const bool runAsync)
-        : iconType (iconType_), title (title_),
-          message (message_), callback (callback_),
-          button1 ([button1_ retain]),
-          button2 ([button2_ retain]),
-          button3 ([button3_ retain])
+    OSXMessageBox (AlertWindow::AlertIconType type, const String& t, const String& m,
+                   const char* b1, const char* b2, const char* b3,
+                   ModalComponentManager::Callback* c, const bool runAsync)
+        : iconType (type), title (t), message (m), callback (c),
+          button1 (b1), button2 (b2), button3 (b3)
     {
         if (runAsync)
             triggerAsyncUpdate();
     }
 
-    ~OSXMessageBox()
-    {
-        [button1 release];
-        [button2 release];
-        [button3 release];
-    }
-
     int getResult() const
     {
-        JUCE_AUTORELEASEPOOL
-        NSInteger r = getRawResult();
-        return r == NSAlertDefaultReturn ? 1 : (r == NSAlertOtherReturn ? 2 : 0);
+        switch (getRawResult())
+        {
+            case NSAlertDefaultReturn:  return 1;
+            case NSAlertOtherReturn:    return 2;
+            default:                    return 0;
+        }
     }
+
+    static int show (AlertWindow::AlertIconType iconType, const String& title, const String& message,
+                     ModalComponentManager::Callback* callback, const char* b1, const char* b2, const char* b3,
+                     bool runAsync)
+    {
+        ScopedPointer<OSXMessageBox> mb (new OSXMessageBox (iconType, title, message, b1, b2, b3,
+                                                            callback, runAsync));
+        if (! runAsync)
+            return mb->getResult();
+
+        mb.release();
+        return 0;
+    }
+
+private:
+    AlertWindow::AlertIconType iconType;
+    String title, message;
+    ModalComponentManager::Callback* callback;
+    const char* button1;
+    const char* button2;
+    const char* button3;
 
     void handleAsyncUpdate()
     {
@@ -71,24 +83,24 @@ public:
         delete this;
     }
 
-private:
-    AlertWindow::AlertIconType iconType;
-    String title, message;
-    ModalComponentManager::Callback* callback;
-    NSString* button1;
-    NSString* button2;
-    NSString* button3;
+    static NSString* translateIfNotNull (const char* s)
+    {
+        return s != nullptr ? juceStringToNS (TRANS (s)) : nil;
+    }
 
     NSInteger getRawResult() const
     {
-        NSString* messageString = juceStringToNS (message);
-        NSString* titleString = juceStringToNS (title);
+        NSString* msg = juceStringToNS (message);
+        NSString* ttl = juceStringToNS (title);
+        NSString* b1  = translateIfNotNull (button1);
+        NSString* b2  = translateIfNotNull (button2);
+        NSString* b3  = translateIfNotNull (button3);
 
         switch (iconType)
         {
-            case AlertWindow::InfoIcon:     return NSRunInformationalAlertPanel (titleString, messageString, button1, button2, button3);
-            case AlertWindow::WarningIcon:  return NSRunCriticalAlertPanel      (titleString, messageString, button1, button2, button3);
-            default:                        return NSRunAlertPanel              (titleString, messageString, button1, button2, button3);
+            case AlertWindow::InfoIcon:     return NSRunInformationalAlertPanel (ttl, msg, b1, b2, b3);
+            case AlertWindow::WarningIcon:  return NSRunCriticalAlertPanel      (ttl, msg, b1, b2, b3);
+            default:                        return NSRunAlertPanel              (ttl, msg, b1, b2, b3);
         }
     }
 };
@@ -96,50 +108,35 @@ private:
 
 void JUCE_CALLTYPE NativeMessageBox::showMessageBox (AlertWindow::AlertIconType iconType,
                                                      const String& title, const String& message,
-                                                     Component* associatedComponent)
+                                                     Component* /*associatedComponent*/)
 {
-    OSXMessageBox box (iconType, title, message, nsStringLiteral ("OK"), nil, nil, 0, false);
-    (void) box.getResult();
+    OSXMessageBox::show (iconType, title, message, nullptr, "OK", nullptr, nullptr, false);
 }
 
 void JUCE_CALLTYPE NativeMessageBox::showMessageBoxAsync (AlertWindow::AlertIconType iconType,
                                                           const String& title, const String& message,
-                                                          Component* associatedComponent)
+                                                          Component* /*associatedComponent*/,
+                                                          ModalComponentManager::Callback* callback)
 {
-    new OSXMessageBox (iconType, title, message, nsStringLiteral ("OK"), nil, nil, 0, true);
+    OSXMessageBox::show (iconType, title, message, callback, "OK", nullptr, nullptr, true);
 }
 
 bool JUCE_CALLTYPE NativeMessageBox::showOkCancelBox (AlertWindow::AlertIconType iconType,
                                                       const String& title, const String& message,
-                                                      Component* associatedComponent,
+                                                      Component* /*associatedComponent*/,
                                                       ModalComponentManager::Callback* callback)
 {
-    ScopedPointer<OSXMessageBox> mb (new OSXMessageBox (iconType, title, message,
-                                                        nsStringLiteral ("OK"),
-                                                        nsStringLiteral ("Cancel"),
-                                                        nil, callback, callback != nullptr));
-    if (callback == nullptr)
-        return mb->getResult() == 1;
-
-    mb.release();
-    return false;
+    return OSXMessageBox::show (iconType, title, message, callback,
+                                "OK", "Cancel", nullptr, callback != nullptr) == 1;
 }
 
 int JUCE_CALLTYPE NativeMessageBox::showYesNoCancelBox (AlertWindow::AlertIconType iconType,
                                                         const String& title, const String& message,
-                                                        Component* associatedComponent,
+                                                        Component* /*associatedComponent*/,
                                                         ModalComponentManager::Callback* callback)
 {
-    ScopedPointer<OSXMessageBox> mb (new OSXMessageBox (iconType, title, message,
-                                                        nsStringLiteral ("Yes"),
-                                                        nsStringLiteral ("Cancel"),
-                                                        nsStringLiteral ("No"),
-                                                        callback, callback != nullptr));
-    if (callback == nullptr)
-        return mb->getResult();
-
-    mb.release();
-    return 0;
+    return OSXMessageBox::show (iconType, title, message, callback,
+                                "Yes", "Cancel", "No", callback != nullptr);
 }
 
 
@@ -166,35 +163,36 @@ bool DragAndDropContainer::performExternalDragDropOfFiles (const StringArray& fi
     }
 
     JUCE_AUTORELEASEPOOL
+    {
+        NSView* view = (NSView*) sourceComp->getWindowHandle();
 
-    NSView* view = (NSView*) sourceComp->getWindowHandle();
+        if (view == nil)
+            return false;
 
-    if (view == nil)
-        return false;
+        NSPasteboard* pboard = [NSPasteboard pasteboardWithName: NSDragPboard];
+        [pboard declareTypes: [NSArray arrayWithObject: NSFilenamesPboardType]
+                       owner: nil];
 
-    NSPasteboard* pboard = [NSPasteboard pasteboardWithName: NSDragPboard];
-    [pboard declareTypes: [NSArray arrayWithObject: NSFilenamesPboardType]
-                   owner: nil];
+        NSMutableArray* filesArray = [NSMutableArray arrayWithCapacity: 4];
+        for (int i = 0; i < files.size(); ++i)
+            [filesArray addObject: juceStringToNS (files[i])];
 
-    NSMutableArray* filesArray = [NSMutableArray arrayWithCapacity: 4];
-    for (int i = 0; i < files.size(); ++i)
-        [filesArray addObject: juceStringToNS (files[i])];
+        [pboard setPropertyList: filesArray
+                        forType: NSFilenamesPboardType];
 
-    [pboard setPropertyList: filesArray
-                    forType: NSFilenamesPboardType];
+        NSPoint dragPosition = [view convertPoint: [[[view window] currentEvent] locationInWindow]
+                                         fromView: nil];
+        dragPosition.x -= 16;
+        dragPosition.y -= 16;
 
-    NSPoint dragPosition = [view convertPoint: [[[view window] currentEvent] locationInWindow]
-                                     fromView: nil];
-    dragPosition.x -= 16;
-    dragPosition.y -= 16;
-
-    [view dragImage: [[NSWorkspace sharedWorkspace] iconForFile: juceStringToNS (files[0])]
-                 at: dragPosition
-             offset: NSMakeSize (0, 0)
-              event: [[view window] currentEvent]
-         pasteboard: pboard
-             source: view
-          slideBack: YES];
+        [view dragImage: [[NSWorkspace sharedWorkspace] iconForFile: juceStringToNS (files[0])]
+                     at: dragPosition
+                 offset: NSMakeSize (0, 0)
+                  event: [[view window] currentEvent]
+             pasteboard: pboard
+                 source: view
+              slideBack: YES];
+    }
 
     return true;
 }
@@ -214,8 +212,10 @@ bool Desktop::canUseSemiTransparentWindows() noexcept
 Point<int> MouseInputSource::getCurrentMousePosition()
 {
     JUCE_AUTORELEASEPOOL
-    const NSPoint p ([NSEvent mouseLocation]);
-    return Point<int> (roundToInt (p.x), roundToInt ([[[NSScreen screens] objectAtIndex: 0] frame].size.height - p.y));
+    {
+        const NSPoint p ([NSEvent mouseLocation]);
+        return Point<int> (roundToInt (p.x), roundToInt ([[[NSScreen screens] objectAtIndex: 0] frame].size.height - p.y));
+    }
 }
 
 void Desktop::setMousePosition (const Point<int>& newPosition)
@@ -223,7 +223,7 @@ void Desktop::setMousePosition (const Point<int>& newPosition)
     // this rubbish needs to be done around the warp call, to avoid causing a
     // bizarre glitch..
     CGAssociateMouseAndMouseCursorPosition (false);
-    CGWarpMouseCursorPosition (CGPointMake (newPosition.getX(), newPosition.getY()));
+    CGWarpMouseCursorPosition (convertToCGPoint (newPosition));
     CGAssociateMouseAndMouseCursorPosition (true);
 }
 
@@ -233,13 +233,59 @@ Desktop::DisplayOrientation Desktop::getCurrentOrientation() const
 }
 
 //==============================================================================
-#ifndef __POWER__  // Some versions of the SDK omit this function..
- extern "C"  { extern OSErr UpdateSystemActivity (UInt8); }
+#if defined (MAC_OS_X_VERSION_10_7) && (MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_7)
+ #define JUCE_USE_IOPM_SCREENSAVER_DEFEAT 1
+#endif
+
+#if ! (defined (JUCE_USE_IOPM_SCREENSAVER_DEFEAT) || defined (__POWER__))
+ extern "C"  { extern OSErr UpdateSystemActivity (UInt8); } // Some versions of the SDK omit this function..
 #endif
 
 class ScreenSaverDefeater   : public Timer
 {
 public:
+   #if JUCE_USE_IOPM_SCREENSAVER_DEFEAT
+    ScreenSaverDefeater()
+    {
+        startTimer (5000);
+        timerCallback();
+    }
+
+    void timerCallback()
+    {
+        if (Process::isForegroundProcess())
+        {
+            if (assertion == nullptr)
+                assertion = new PMAssertion();
+        }
+        else
+        {
+            assertion = nullptr;
+        }
+    }
+
+    struct PMAssertion
+    {
+        PMAssertion()  : assertionID (kIOPMNullAssertionID)
+        {
+            IOReturn res = IOPMAssertionCreateWithName (kIOPMAssertionTypePreventUserIdleDisplaySleep,
+                                                        kIOPMAssertionLevelOn,
+                                                        CFSTR ("JUCE Playback"),
+                                                        &assertionID);
+            jassert (res == kIOReturnSuccess); (void) res;
+        }
+
+        ~PMAssertion()
+        {
+            if (assertionID != kIOPMNullAssertionID)
+                IOPMAssertionRelease (assertionID);
+        }
+
+        IOPMAssertionID assertionID;
+    };
+
+    ScopedPointer<PMAssertion> assertion;
+   #else
     ScreenSaverDefeater()
     {
         startTimer (10000);
@@ -251,6 +297,7 @@ public:
         if (Process::isForegroundProcess())
             UpdateSystemActivity (1 /*UsrActivity*/);
     }
+   #endif
 };
 
 static ScopedPointer<ScreenSaverDefeater> screenSaverDefeater;
@@ -269,7 +316,7 @@ bool Desktop::isScreenSaverEnabled()
 }
 
 //==============================================================================
-class DisplaySettingsChangeCallback  : public DeletedAtShutdown
+class DisplaySettingsChangeCallback  : private DeletedAtShutdown
 {
 public:
     DisplaySettingsChangeCallback()
@@ -285,62 +332,92 @@ public:
 
     static void displayReconfigurationCallBack (CGDirectDisplayID, CGDisplayChangeSummaryFlags, void*)
     {
-        Desktop::getInstance().refreshMonitorSizes();
+        const_cast <Desktop::Displays&> (Desktop::getInstance().getDisplays()).refresh();
     }
 
     juce_DeclareSingleton_SingleThreaded_Minimal (DisplaySettingsChangeCallback);
 
 private:
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DisplaySettingsChangeCallback);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DisplaySettingsChangeCallback)
 };
 
 juce_ImplementSingleton_SingleThreaded (DisplaySettingsChangeCallback);
 
-void Desktop::getCurrentMonitorPositions (Array <Rectangle<int> >& monitorCoords, const bool clipToWorkArea)
+static Rectangle<int> convertDisplayRect (NSRect r, CGFloat mainScreenBottom)
+{
+    r.origin.y = mainScreenBottom - (r.origin.y + r.size.height);
+    return convertToRectInt (r);
+}
+
+void Desktop::Displays::findDisplays()
 {
     JUCE_AUTORELEASEPOOL
-
-    DisplaySettingsChangeCallback::getInstance();
-
-    monitorCoords.clear();
-    NSArray* screens = [NSScreen screens];
-    const CGFloat mainScreenBottom = [[[NSScreen screens] objectAtIndex: 0] frame].size.height;
-
-    for (unsigned int i = 0; i < [screens count]; ++i)
     {
-        NSScreen* s = (NSScreen*) [screens objectAtIndex: i];
+        DisplaySettingsChangeCallback::getInstance();
 
-        NSRect r = clipToWorkArea ? [s visibleFrame]
-                                  : [s frame];
+        NSArray* screens = [NSScreen screens];
+        const CGFloat mainScreenBottom = [[screens objectAtIndex: 0] frame].size.height;
 
-        r.origin.y = mainScreenBottom - (r.origin.y + r.size.height);
+        for (unsigned int i = 0; i < [screens count]; ++i)
+        {
+            NSScreen* s = (NSScreen*) [screens objectAtIndex: i];
 
-        monitorCoords.add (convertToRectInt (r));
+            Display d;
+            d.userArea  = convertDisplayRect ([s visibleFrame], mainScreenBottom);
+            d.totalArea = convertDisplayRect ([s frame], mainScreenBottom);
+            d.isMain = (i == 0);
+
+           #if defined (MAC_OS_X_VERSION_10_7) && (MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_7)
+            if ([s respondsToSelector: @selector (backingScaleFactor)])
+                d.scale = s.backingScaleFactor;
+            else
+           #endif
+                d.scale = 1.0;
+
+            displays.add (d);
+        }
+    }
+}
+
+//==============================================================================
+bool juce_areThereAnyAlwaysOnTopWindows()
+{
+    NSArray* windows = [NSApp windows];
+
+    for (unsigned int i = 0; i < [windows count]; ++i)
+    {
+        const NSInteger level = [((NSWindow*) [windows objectAtIndex: i]) level];
+
+        if (level == NSFloatingWindowLevel
+             || level == NSStatusWindowLevel
+             || level == NSModalPanelWindowLevel)
+            return true;
     }
 
-    jassert (monitorCoords.size() > 0);
+    return false;
 }
 
 //==============================================================================
 Image juce_createIconForFile (const File& file)
 {
     JUCE_AUTORELEASEPOOL
+    {
+        NSImage* image = [[NSWorkspace sharedWorkspace] iconForFile: juceStringToNS (file.getFullPathName())];
 
-    NSImage* image = [[NSWorkspace sharedWorkspace] iconForFile: juceStringToNS (file.getFullPathName())];
+        Image result (Image::ARGB, (int) [image size].width, (int) [image size].height, true);
 
-    Image result (Image::ARGB, (int) [image size].width, (int) [image size].height, true);
+        [NSGraphicsContext saveGraphicsState];
+        [NSGraphicsContext setCurrentContext: [NSGraphicsContext graphicsContextWithGraphicsPort: juce_getImageContext (result) flipped: false]];
 
-    [NSGraphicsContext saveGraphicsState];
-    [NSGraphicsContext setCurrentContext: [NSGraphicsContext graphicsContextWithGraphicsPort: juce_getImageContext (result) flipped: false]];
+        [image drawAtPoint: NSMakePoint (0, 0)
+                  fromRect: NSMakeRect (0, 0, [image size].width, [image size].height)
+                 operation: NSCompositeSourceOver fraction: 1.0f];
 
-    [image drawAtPoint: NSMakePoint (0, 0)
-              fromRect: NSMakeRect (0, 0, [image size].width, [image size].height)
-             operation: NSCompositeSourceOver fraction: 1.0f];
+        [[NSGraphicsContext currentContext] flushGraphics];
+        [NSGraphicsContext restoreGraphicsState];
 
-    [[NSGraphicsContext currentContext] flushGraphics];
-    [NSGraphicsContext restoreGraphicsState];
-
-    return result;
+        return result;
+    }
 }
 
 //==============================================================================
@@ -361,4 +438,15 @@ String SystemClipboard::getTextFromClipboard()
 
     return text == nil ? String::empty
                        : nsStringToJuce (text);
+}
+
+void Process::setDockIconVisible (bool isVisible)
+{
+   #if defined (MAC_OS_X_VERSION_10_6) && (MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_6)
+    [NSApp setActivationPolicy: isVisible ? NSApplicationActivationPolicyRegular
+                                          : NSApplicationActivationPolicyProhibited];
+   #else
+    (void) isVisible;
+    jassertfalse; // sorry, not available in 10.5!
+   #endif
 }

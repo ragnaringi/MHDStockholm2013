@@ -84,6 +84,9 @@ public:
     /** Calls the refresh() method of all PropertyComponents in the panel */
     void refreshAll() const;
 
+    /** Returns true if there no properties have been added. */
+    bool isEmpty() const;
+
     //==============================================================================
     /** Returns a list of all the names of sections in the panel.
 
@@ -149,6 +152,8 @@ public:
     void resized();
 
 private:
+    class SectionComponent;
+
     Viewport viewport;
     class PropertyHolderComponent;
     PropertyHolderComponent* propertyHolderComponent;
@@ -157,7 +162,7 @@ private:
     void updatePropHolderLayout() const;
     void updatePropHolderLayout (int width) const;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PropertyPanel);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PropertyPanel)
 };
 
 

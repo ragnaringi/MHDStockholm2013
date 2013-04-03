@@ -31,7 +31,7 @@ UnitTest::UnitTest (const String& name_)
 
 UnitTest::~UnitTest()
 {
-    getAllTests().removeValue (this);
+    getAllTests().removeFirstMatchingValue (this);
 }
 
 Array<UnitTest*>& UnitTest::getAllTests()
@@ -230,5 +230,5 @@ void UnitTestRunner::addFail (const String& failureMessage)
 
     resultsUpdated();
 
-    if (assertOnFailure) { jassertfalse }
+    if (assertOnFailure) { jassertfalse; }
 }

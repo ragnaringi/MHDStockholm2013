@@ -31,6 +31,8 @@
 
 - (void) applicationDidFinishLaunching: (UIApplication*) application;
 - (void) applicationWillTerminate: (UIApplication*) application;
+- (void) applicationDidEnterBackground: (UIApplication*) application;
+- (void) applicationWillEnterForeground: (UIApplication*) application;
 
 @end
 
@@ -41,13 +43,27 @@
     initialiseJuce_GUI();
 
     JUCEApplication* app = dynamic_cast <JUCEApplication*> (JUCEApplicationBase::createInstance());
-    if (! app->initialiseApp (String::empty))
+    if (! app->initialiseApp())
         exit (0);
 }
 
 - (void) applicationWillTerminate: (UIApplication*) application
 {
     JUCEApplicationBase::appWillTerminateByForce();
+}
+
+- (void) applicationDidEnterBackground: (UIApplication*) application
+{
+    JUCEApplicationBase* const app = JUCEApplicationBase::getInstance();
+    if (app != nullptr)
+        app->suspended();
+}
+
+- (void) applicationWillEnterForeground: (UIApplication*) application
+{
+    JUCEApplicationBase* const app = JUCEApplicationBase::getInstance();
+    if (app != nullptr)
+        app->resumed();
 }
 
 @end
@@ -90,9 +106,9 @@ class iOSMessageBox
 public:
     iOSMessageBox (const String& title, const String& message,
                    NSString* button1, NSString* button2, NSString* button3,
-                   ModalComponentManager::Callback* callback_, const bool isAsync_)
+                   ModalComponentManager::Callback* cb, const bool async)
         : result (0), delegate (nil), alert (nil),
-          callback (callback_), isYesNo (button3 != nil), isAsync (isAsync_)
+          callback (cb), isYesNo (button3 != nil), isAsync (async)
     {
         delegate = [[JuceAlertBoxDelegate alloc] init];
         delegate->owner = this;
@@ -115,10 +131,12 @@ public:
     int getResult()
     {
         jassert (callback == nullptr);
-        JUCE_AUTORELEASEPOOL
 
-        while (! alert.hidden && alert.superview != nil)
-            [[NSRunLoop mainRunLoop] runUntilDate: [NSDate dateWithTimeIntervalSinceNow: 0.01]];
+        JUCE_AUTORELEASEPOOL
+        {
+            while (! alert.hidden && alert.superview != nil)
+                [[NSRunLoop mainRunLoop] runUntilDate: [NSDate dateWithTimeIntervalSinceNow: 0.01]];
+        }
 
         return result;
     }
@@ -141,7 +159,7 @@ private:
     ModalComponentManager::Callback* callback;
     const bool isYesNo, isAsync;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (iOSMessageBox);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (iOSMessageBox)
 };
 
 } // (juce namespace)
@@ -165,16 +183,18 @@ void JUCE_CALLTYPE NativeMessageBox::showMessageBox (AlertWindow::AlertIconType 
                                                      Component* associatedComponent)
 {
     JUCE_AUTORELEASEPOOL
-    iOSMessageBox mb (title, message, @"OK", nil, nil, 0, false);
-    (void) mb.getResult();
+    {
+        iOSMessageBox mb (title, message, @"OK", nil, nil, nullptr, false);
+        (void) mb.getResult();
+    }
 }
 
 void JUCE_CALLTYPE NativeMessageBox::showMessageBoxAsync (AlertWindow::AlertIconType iconType,
                                                           const String& title, const String& message,
-                                                          Component* associatedComponent)
+                                                          Component* associatedComponent,
+                                                          ModalComponentManager::Callback* callback)
 {
-    JUCE_AUTORELEASEPOOL
-    new iOSMessageBox (title, message, @"OK", nil, nil, 0, true);
+    new iOSMessageBox (title, message, @"OK", nil, nil, callback, true);
 }
 
 bool JUCE_CALLTYPE NativeMessageBox::showOkCancelBox (AlertWindow::AlertIconType iconType,
@@ -182,7 +202,8 @@ bool JUCE_CALLTYPE NativeMessageBox::showOkCancelBox (AlertWindow::AlertIconType
                                                       Component* associatedComponent,
                                                       ModalComponentManager::Callback* callback)
 {
-    ScopedPointer<iOSMessageBox> mb (new iOSMessageBox (title, message, @"Cancel", @"OK", nil, callback, callback != nullptr));
+    ScopedPointer<iOSMessageBox> mb (new iOSMessageBox (title, message, @"Cancel", @"OK",
+                                                        nil, callback, callback != nullptr));
 
     if (callback == nullptr)
         return mb->getResult() == 1;
@@ -208,13 +229,13 @@ int JUCE_CALLTYPE NativeMessageBox::showYesNoCancelBox (AlertWindow::AlertIconTy
 //==============================================================================
 bool DragAndDropContainer::performExternalDragDropOfFiles (const StringArray& files, const bool canMoveFiles)
 {
-    jassertfalse;    // no such thing on the iphone!
+    jassertfalse;    // no such thing on iOS!
     return false;
 }
 
 bool DragAndDropContainer::performExternalDragDropOfText (const String& text)
 {
-    jassertfalse;    // no such thing on the iphone!
+    jassertfalse;    // no such thing on iOS!
     return false;
 }
 
@@ -227,6 +248,12 @@ void Desktop::setScreenSaverEnabled (const bool isEnabled)
 bool Desktop::isScreenSaverEnabled()
 {
     return ! [[UIApplication sharedApplication] isIdleTimerDisabled];
+}
+
+//==============================================================================
+bool juce_areThereAnyAlwaysOnTopWindows()
+{
+    return false;
 }
 
 //==============================================================================
@@ -251,10 +278,10 @@ String SystemClipboard::getTextFromClipboard()
 }
 
 //==============================================================================
-void Desktop::createMouseInputSources()
+bool Desktop::addMouseInputSource()
 {
-    for (int i = 0; i < 10; ++i)
-        mouseSources.add (new MouseInputSource (i, false));
+    mouseSources.add (new MouseInputSource (mouseSources.size(), false));
+    return true;
 }
 
 bool Desktop::canUseSemiTransparentWindows() noexcept
@@ -273,16 +300,25 @@ void Desktop::setMousePosition (const Point<int>&)
 
 Desktop::DisplayOrientation Desktop::getCurrentOrientation() const
 {
-    return convertToJuceOrientation ([[UIApplication sharedApplication] statusBarOrientation]);
+    return Orientations::convertToJuce ([[UIApplication sharedApplication] statusBarOrientation]);
 }
 
-void Desktop::getCurrentMonitorPositions (Array <Rectangle <int> >& monitorCoords, const bool clipToWorkArea)
+void Desktop::Displays::findDisplays()
 {
     JUCE_AUTORELEASEPOOL
-    monitorCoords.clear();
+    {
+        UIScreen* s = [UIScreen mainScreen];
 
-    CGRect r = clipToWorkArea ? [[UIScreen mainScreen] applicationFrame]
-                              : [[UIScreen mainScreen] bounds];
+        Display d;
+        d.userArea  = UIViewComponentPeer::realScreenPosToRotated (convertToRectInt ([s applicationFrame]));
+        d.totalArea = UIViewComponentPeer::realScreenPosToRotated (convertToRectInt ([s bounds]));
+        d.isMain = true;
 
-    monitorCoords.add (UIViewComponentPeer::realScreenPosToRotated (convertToRectInt (r)));
+        if ([s respondsToSelector: @selector (scale)])
+            d.scale = s.scale;
+        else
+            d.scale = 1.0;
+
+        displays.add (d);
+    }
 }

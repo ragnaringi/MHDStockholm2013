@@ -32,9 +32,9 @@ class OpenGLContext::NativeContext
 public:
     NativeContext (Component& component,
                    const OpenGLPixelFormat& pixelFormat,
-                   const NativeContext* contextToShareWith_)
+                   void* shareContext)
         : renderContext (0), embeddedWindow (0), swapFrames (0), bestVisual (0),
-          contextToShareWith (contextToShareWith_)
+          contextToShareWith (shareContext)
     {
         ScopedXLock xlock;
         XSync (display, False);
@@ -103,18 +103,16 @@ public:
             XFree (bestVisual);
     }
 
-    void initialiseOnRenderThread()
+    void initialiseOnRenderThread (OpenGLContext& context)
     {
         ScopedXLock xlock;
-        renderContext = glXCreateContext (display, bestVisual,
-                                          contextToShareWith != nullptr ? contextToShareWith->renderContext : 0,
-                                          GL_TRUE);
-        makeActive();
+        renderContext = glXCreateContext (display, bestVisual, (GLXContext) contextToShareWith, GL_TRUE);
+        context.makeActive();
     }
 
     void shutdownOnRenderThread()
     {
-        glXMakeCurrent (display, None, 0);
+        deactivateCurrentContext();
         glXDestroyContext (display, renderContext);
         renderContext = nullptr;
     }
@@ -128,6 +126,11 @@ public:
     bool isActive() const noexcept
     {
         return glXGetCurrentContext() == renderContext && renderContext != 0;
+    }
+
+    static void deactivateCurrentContext()
+    {
+        glXMakeCurrent (display, None, 0);
     }
 
     void swapBuffers()
@@ -178,9 +181,9 @@ private:
     int swapFrames;
     Rectangle<int> bounds;
     XVisualInfo* bestVisual;
-    const NativeContext* contextToShareWith;
+    void* contextToShareWith;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NativeContext);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NativeContext)
 };
 
 //==============================================================================

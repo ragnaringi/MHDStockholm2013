@@ -33,8 +33,8 @@ namespace
     StringArray findFileExtensionsForCoreAudioCodecs()
     {
         StringArray extensionsArray;
-        CFMutableArrayRef extensions = CFArrayCreateMutable (0, 0, 0);
-        UInt32 sizeOfArray = sizeof (CFMutableArrayRef);
+        CFArrayRef extensions = nullptr;
+        UInt32 sizeOfArray = sizeof (extensions);
 
         if (AudioFileGetGlobalInfo (kAudioFileGlobalInfo_AllExtensions, 0, 0, &sizeOfArray, &extensions) == noErr)
         {
@@ -42,9 +42,10 @@ namespace
 
             for (CFIndex i = 0; i < numValues; ++i)
                 extensionsArray.add ("." + String::fromCFString ((CFStringRef) CFArrayGetValueAtIndex (extensions, i)));
+
+            CFRelease (extensions);
         }
 
-        CFRelease (extensions);
         return extensionsArray;
     }
 }
@@ -58,12 +59,13 @@ public:
           ok (false), lastReadPosition (0)
     {
         usesFloatingPointData = true;
+        bitsPerSample = 32;
 
         OSStatus status = AudioFileOpenWithCallbacks (this,
                                                       &readCallback,
-                                                      0,        // write needs to be null to avoid permisisions errors
+                                                      nullptr,  // write needs to be null to avoid permisisions errors
                                                       &getSizeCallback,
-                                                      0,        // setSize needs to be null to avoid permisisions errors
+                                                      nullptr,  // setSize needs to be null to avoid permisisions errors
                                                       0,        // AudioFileTypeID inFileTypeHint
                                                       &audioFileID);
         if (status == noErr)
@@ -79,9 +81,8 @@ public:
                                          &audioStreamBasicDescriptionSize,
                                          &sourceAudioFormat);
 
-                numChannels   = sourceAudioFormat.mChannelsPerFrame;
-                sampleRate    = sourceAudioFormat.mSampleRate;
-                bitsPerSample = sourceAudioFormat.mBitsPerChannel;
+                numChannels = sourceAudioFormat.mChannelsPerFrame;
+                sampleRate  = sourceAudioFormat.mSampleRate;
 
                 UInt32 sizeOfLengthProperty = sizeof (int64);
                 ExtAudioFileGetProperty (audioFileRef,
@@ -122,17 +123,8 @@ public:
     bool readSamples (int** destSamples, int numDestChannels, int startOffsetInDestBuffer,
                       int64 startSampleInFile, int numSamples)
     {
-        jassert (destSamples != nullptr);
-        const int64 samplesAvailable = lengthInSamples - startSampleInFile;
-
-        if (samplesAvailable < numSamples)
-        {
-            for (int i = numDestChannels; --i >= 0;)
-                if (destSamples[i] != nullptr)
-                    zeromem (destSamples[i] + startOffsetInDestBuffer, sizeof (int) * (size_t) numSamples);
-
-            numSamples = (int) samplesAvailable;
-        }
+        clearSamplesBeyondAvailableLength (destSamples, numDestChannels, startOffsetInDestBuffer,
+                                           startSampleInFile, numSamples, lengthInSamples);
 
         if (numSamples <= 0)
             return true;
@@ -215,7 +207,7 @@ private:
         return noErr;
     }
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CoreAudioReader);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CoreAudioReader)
 };
 
 //==============================================================================

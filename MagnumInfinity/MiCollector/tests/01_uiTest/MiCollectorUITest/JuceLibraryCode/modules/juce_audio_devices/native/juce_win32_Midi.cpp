@@ -26,7 +26,6 @@
 class MidiInCollector
 {
 public:
-    //==============================================================================
     MidiInCollector (MidiInput* const input_,
                      MidiInputCallback& callback_)
         : deviceHandle (0),
@@ -44,8 +43,7 @@ public:
 
         if (deviceHandle != 0)
         {
-            int count = 5;
-            while (--count >= 0)
+            for (int count = 5; --count >= 0;)
             {
                 if (midiInClose (deviceHandle) == MMSYSERR_NOERROR)
                     break;
@@ -56,11 +54,12 @@ public:
     }
 
     //==============================================================================
-    void handleMessage (const uint32 message, const uint32 timeStamp)
+    void handleMessage (const uint8* bytes, const uint32 timeStamp)
     {
-        if ((message & 0xff) >= 0x80 && isStarted)
+        if (bytes[0] >= 0x80 && isStarted)
         {
-            concatenator.pushMidiData (&message, 3, convertTimeStamp (timeStamp), input, callback);
+            concatenator.pushMidiData (bytes, MidiMessage::getMessageLengthFromFirstByte (bytes[0]),
+                                       convertTimeStamp (timeStamp), input, callback);
             writeFinishedBlocks();
         }
     }
@@ -69,14 +68,14 @@ public:
     {
         if (isStarted && hdr->dwBytesRecorded > 0)
         {
-            concatenator.pushMidiData (hdr->lpData, (int) hdr->dwBytesRecorded, convertTimeStamp (timeStamp), input, callback);
+            concatenator.pushMidiData (hdr->lpData, (int) hdr->dwBytesRecorded,
+                                       convertTimeStamp (timeStamp), input, callback);
             writeFinishedBlocks();
         }
     }
 
     void start()
     {
-        jassert (deviceHandle != 0);
         if (deviceHandle != 0 && ! isStarted)
         {
             activeMidiCollectors.addIfNotAlreadyThere (this);
@@ -84,7 +83,7 @@ public:
             for (int i = 0; i < (int) numHeaders; ++i)
                 headers[i].write (deviceHandle);
 
-            startTime = Time::getMillisecondCounter();
+            startTime = Time::getMillisecondCounterHiRes();
             MMRESULT res = midiInStart (deviceHandle);
 
             if (res == MMSYSERR_NOERROR)
@@ -106,20 +105,21 @@ public:
             isStarted = false;
             midiInReset (deviceHandle);
             midiInStop (deviceHandle);
-            activeMidiCollectors.removeValue (this);
+            activeMidiCollectors.removeFirstMatchingValue (this);
             unprepareAllHeaders();
             concatenator.reset();
         }
     }
 
-    static void CALLBACK midiInCallback (HMIDIIN, UINT uMsg, DWORD_PTR dwInstance, DWORD_PTR midiMessage, DWORD_PTR timeStamp)
+    static void CALLBACK midiInCallback (HMIDIIN, UINT uMsg, DWORD_PTR dwInstance,
+                                         DWORD_PTR midiMessage, DWORD_PTR timeStamp)
     {
         MidiInCollector* const collector = reinterpret_cast <MidiInCollector*> (dwInstance);
 
         if (activeMidiCollectors.contains (collector))
         {
             if (uMsg == MIM_DATA)
-                collector->handleMessage ((uint32) midiMessage, (uint32) timeStamp);
+                collector->handleMessage ((const uint8*) &midiMessage, (uint32) timeStamp);
             else if (uMsg == MIM_LONGDATA)
                 collector->handleSysEx ((MIDIHDR*) midiMessage, (uint32) timeStamp);
         }
@@ -134,7 +134,7 @@ private:
     MidiInputCallback& callback;
     MidiDataConcatenator concatenator;
     bool volatile isStarted;
-    uint32 startTime;
+    double startTime;
 
     class MidiHeader
     {
@@ -151,6 +151,7 @@ private:
             hdr.dwBytesRecorded = 0;
             MMRESULT res = midiInPrepareHeader (deviceHandle, &hdr, sizeof (hdr));
             res = midiInAddBuffer (deviceHandle, &hdr, sizeof (hdr));
+            (void) res;
         }
 
         void writeIfFinished (HMIDIIN deviceHandle)
@@ -179,7 +180,7 @@ private:
         MIDIHDR hdr;
         char data [256];
 
-        JUCE_DECLARE_NON_COPYABLE (MidiHeader);
+        JUCE_DECLARE_NON_COPYABLE (MidiHeader)
     };
 
     enum { numHeaders = 32 };
@@ -199,21 +200,21 @@ private:
 
     double convertTimeStamp (uint32 timeStamp)
     {
-        timeStamp += startTime;
+        double t = startTime + timeStamp;
 
-        const uint32 now = Time::getMillisecondCounter();
-        if (timeStamp > now)
+        const double now = Time::getMillisecondCounterHiRes();
+        if (t > now)
         {
-            if (timeStamp > now + 2)
-                --startTime;
+            if (t > now + 2.0)
+                startTime -= 1.0;
 
-            timeStamp = now;
+            t = now;
         }
 
-        return timeStamp * 0.001;
+        return t * 0.001;
     }
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiInCollector);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MidiInCollector)
 };
 
 Array <MidiInCollector*, CriticalSection> MidiInCollector::activeMidiCollectors;
@@ -299,15 +300,8 @@ MidiInput::~MidiInput()
     delete static_cast <MidiInCollector*> (internal);
 }
 
-void MidiInput::start()
-{
-    static_cast <MidiInCollector*> (internal)->start();
-}
-
-void MidiInput::stop()
-{
-    static_cast <MidiInCollector*> (internal)->stop();
-}
+void MidiInput::start()     { static_cast <MidiInCollector*> (internal)->start(); }
+void MidiInput::stop()      { static_cast <MidiInCollector*> (internal)->stop(); }
 
 
 //==============================================================================
@@ -320,7 +314,7 @@ struct MidiOutHandle
     static Array<MidiOutHandle*> activeHandles;
 
 private:
-    JUCE_LEAK_DETECTOR (MidiOutHandle);
+    JUCE_LEAK_DETECTOR (MidiOutHandle)
 };
 
 Array<MidiOutHandle*> MidiOutHandle::activeHandles;
@@ -369,31 +363,28 @@ MidiOutput* MidiOutput::openDevice (int index)
     const UINT num = midiOutGetNumDevs();
     int n = 0;
 
+    for (UINT i = 0; i < num; ++i)
     {
-        for (UINT i = 0; i < num; ++i)
+        MIDIOUTCAPS mc = { 0 };
+
+        if (midiOutGetDevCaps (i, &mc, sizeof (mc)) == MMSYSERR_NOERROR)
         {
-            MIDIOUTCAPS mc = { 0 };
+            // use the microsoft sw synth as a default - best not to allow deviceId
+            // to be MIDI_MAPPER, or else device sharing breaks
+            if (String (mc.szPname, sizeof (mc.szPname)).containsIgnoreCase ("microsoft"))
+                deviceId = i;
 
-            if (midiOutGetDevCaps (i, &mc, sizeof (mc)) == MMSYSERR_NOERROR)
+            if (index == n)
             {
-                // use the microsoft sw synth as a default - best not to allow deviceId
-                // to be MIDI_MAPPER, or else device sharing breaks
-                if (String (mc.szPname, sizeof (mc.szPname)).containsIgnoreCase ("microsoft"))
-                    deviceId = i;
-
-                if (index == n)
-                {
-                    deviceId = i;
-                    break;
-                }
-
-                ++n;
+                deviceId = i;
+                break;
             }
+
+            ++n;
         }
     }
 
-    int i;
-    for (i = MidiOutHandle::activeHandles.size(); --i >= 0;)
+    for (int i = MidiOutHandle::activeHandles.size(); --i >= 0;)
     {
         MidiOutHandle* const han = MidiOutHandle::activeHandles.getUnchecked(i);
 
@@ -407,7 +398,7 @@ MidiOutput* MidiOutput::openDevice (int index)
         }
     }
 
-    for (i = 4; --i >= 0;)
+    for (int i = 4; --i >= 0;)
     {
         HMIDIOUT h = 0;
         MMRESULT res = midiOutOpen (&h, deviceId, 0, 0, CALLBACK_NULL);
@@ -446,7 +437,7 @@ MidiOutput::~MidiOutput()
     if (MidiOutHandle::activeHandles.contains (h) && --(h->refCount) == 0)
     {
         midiOutClose (h->handle);
-        MidiOutHandle::activeHandles.removeValue (h);
+        MidiOutHandle::activeHandles.removeFirstMatchingValue (h);
         delete h;
     }
 }
@@ -455,14 +446,12 @@ void MidiOutput::sendMessageNow (const MidiMessage& message)
 {
     const MidiOutHandle* const handle = static_cast <const MidiOutHandle*> (internal);
 
-    if (message.getRawDataSize() > 3
-         || message.isSysEx())
+    if (message.getRawDataSize() > 3 || message.isSysEx())
     {
         MIDIHDR h = { 0 };
 
         h.lpData = (char*) message.getRawData();
-        h.dwBufferLength = (DWORD) message.getRawDataSize();
-        h.dwBytesRecorded = (DWORD) message.getRawDataSize();
+        h.dwBytesRecorded = h.dwBufferLength  = (DWORD) message.getRawDataSize();
 
         if (midiOutPrepareHeader (handle->handle, &h, sizeof (MIDIHDR)) == MMSYSERR_NOERROR)
         {
@@ -489,7 +478,6 @@ void MidiOutput::sendMessageNow (const MidiMessage& message)
     }
     else
     {
-        midiOutShortMsg (handle->handle,
-                         *(unsigned int*) message.getRawData());
+        midiOutShortMsg (handle->handle, *(unsigned int*) message.getRawData());
     }
 }

@@ -105,6 +105,12 @@ public:
         void set (GLint n1, GLint n2, GLint n3, GLint n4) const noexcept;
         /** Sets a vector float uniform. */
         void set (const GLfloat* values, int numValues) const noexcept;
+        /** Sets a 2x2 matrix float uniform. */
+        void setMatrix2 (const GLfloat* values, GLint count, GLboolean transpose) const noexcept;
+        /** Sets a 3x3 matrix float uniform. */
+        void setMatrix3 (const GLfloat* values, GLint count, GLboolean transpose) const noexcept;
+        /** Sets a 4x4 matrix float uniform. */
+        void setMatrix4 (const GLfloat* values, GLint count, GLboolean transpose) const noexcept;
 
         /** The uniform's ID number.
             If the uniform couldn't be found, this value will be < 0.
@@ -114,7 +120,7 @@ public:
     private:
         const OpenGLContext& context;
 
-        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Uniform);
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Uniform)
     };
 
     /** Represents an openGL vertex attribute value.
@@ -142,7 +148,7 @@ private:
     const OpenGLContext& context;
     String errorLog;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OpenGLShaderProgram);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OpenGLShaderProgram)
 };
 
 #endif   // __JUCE_OPENGLSHADERPROGRAM_JUCEHEADER__

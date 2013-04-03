@@ -46,42 +46,46 @@ class OpenGLContext::NativeContext
 public:
     NativeContext (Component& component,
                    const OpenGLPixelFormat& pixelFormat,
-                   const NativeContext* const contextToShareWith)
+                   void* contextToShareWith)
         : frameBufferHandle (0), colorBufferHandle (0), depthBufferHandle (0),
           lastWidth (0), lastHeight (0), needToRebuildBuffers (false),
           swapFrames (0), useDepthBuffer (pixelFormat.depthBufferBits > 0)
     {
         JUCE_AUTORELEASEPOOL
-        ComponentPeer* const peer = component.getPeer();
-        jassert (peer != nullptr);
+        {
+            ComponentPeer* const peer = component.getPeer();
+            jassert (peer != nullptr);
 
-        const Rectangle<int> bounds (peer->getComponent()->getLocalArea (&component, component.getLocalBounds()));
-        lastWidth  = bounds.getWidth();
-        lastHeight = bounds.getHeight();
+            const Rectangle<int> bounds (peer->getComponent().getLocalArea (&component, component.getLocalBounds()));
+            lastWidth  = bounds.getWidth();
+            lastHeight = bounds.getHeight();
 
-        view = [[JuceGLView alloc] initWithFrame: getCGRectFor (bounds)];
-        view.opaque = YES;
-        view.hidden = NO;
-        view.backgroundColor = [UIColor blackColor];
-        view.userInteractionEnabled = NO;
+            view = [[JuceGLView alloc] initWithFrame: convertToCGRect (bounds)];
+            view.opaque = YES;
+            view.hidden = NO;
+            view.backgroundColor = [UIColor blackColor];
+            view.userInteractionEnabled = NO;
 
-        glLayer = (CAEAGLLayer*) [view layer];
-        [((UIView*) peer->getNativeHandle()) addSubview: view];
+            glLayer = (CAEAGLLayer*) [view layer];
+            glLayer.contentsScale = Desktop::getInstance().getDisplays().getMainDisplay().scale;
 
-        context = [EAGLContext alloc];
+            [((UIView*) peer->getNativeHandle()) addSubview: view];
 
-        const NSUInteger type = kEAGLRenderingAPIOpenGLES2;
+            context = [EAGLContext alloc];
 
-        if (contextToShareWith != nullptr)
-            [context initWithAPI: type  sharegroup: [contextToShareWith->context sharegroup]];
-        else
-            [context initWithAPI: type];
+            const NSUInteger type = kEAGLRenderingAPIOpenGLES2;
 
-        // I'd prefer to put this stuff in the initialiseOnRenderThread() call, but doing
-        // so causes myserious timing-related failures.
-        [EAGLContext setCurrentContext: context];
-        createGLBuffers();
-        [EAGLContext setCurrentContext: nil];
+            if (contextToShareWith != nullptr)
+                [context initWithAPI: type  sharegroup: [(EAGLContext*) contextToShareWith sharegroup]];
+            else
+                [context initWithAPI: type];
+
+            // I'd prefer to put this stuff in the initialiseOnRenderThread() call, but doing
+            // so causes myserious timing-related failures.
+            [EAGLContext setCurrentContext: context];
+            createGLBuffers();
+            deactivateCurrentContext();
+        }
     }
 
     ~NativeContext()
@@ -93,16 +97,17 @@ public:
         [view release];
     }
 
-    void initialiseOnRenderThread() {}
+    void initialiseOnRenderThread (OpenGLContext&) {}
 
     void shutdownOnRenderThread()
     {
         JUCE_CHECK_OPENGL_ERROR
         freeGLBuffers();
+        deactivateCurrentContext();
     }
 
     bool createdOk() const noexcept             { return getRawContext() != nullptr; }
-    void* getRawContext() const noexcept        { return glLayer; }
+    void* getRawContext() const noexcept        { return context; }
     GLuint getFrameBufferID() const noexcept    { return frameBufferHandle; }
 
     bool makeActive() const noexcept
@@ -117,6 +122,11 @@ public:
     bool isActive() const noexcept
     {
         return [EAGLContext currentContext] == context;
+    }
+
+    static void deactivateCurrentContext()
+    {
+        [EAGLContext setCurrentContext: nil];
     }
 
     void swapBuffers()
@@ -136,7 +146,7 @@ public:
 
     void updateWindowPosition (const Rectangle<int>& bounds)
     {
-        view.frame = getCGRectFor (bounds);
+        view.frame = convertToCGRect (bounds);
 
         if (lastWidth != bounds.getWidth() || lastHeight != bounds.getHeight())
         {
@@ -167,14 +177,6 @@ private:
     bool useDepthBuffer;
 
     //==============================================================================
-    static CGRect getCGRectFor (const Rectangle<int>& bounds)
-    {
-        return CGRectMake ((CGFloat) bounds.getX(),
-                           (CGFloat) bounds.getY(),
-                           (CGFloat) bounds.getWidth(),
-                           (CGFloat) bounds.getHeight());
-    }
-
     void createGLBuffers()
     {
         glGenFramebuffers (1, &frameBufferHandle);
@@ -233,7 +235,7 @@ private:
         JUCE_CHECK_OPENGL_ERROR
     }
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NativeContext);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NativeContext)
 };
 
 //==============================================================================

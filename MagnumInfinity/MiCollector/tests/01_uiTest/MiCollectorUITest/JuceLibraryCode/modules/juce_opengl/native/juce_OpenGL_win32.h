@@ -31,7 +31,7 @@ class OpenGLContext::NativeContext
 public:
     NativeContext (Component& component,
                    const OpenGLPixelFormat& pixelFormat,
-                   const NativeContext* contextToShareWith)
+                   void* contextToShareWith)
     {
         createNativeWindow (component);
 
@@ -50,7 +50,7 @@ public:
             initialiseGLExtensions();
 
             const int wglFormat = wglChoosePixelFormatExtension (pixelFormat);
-            wglMakeCurrent (0, 0);
+            deactivateCurrentContext();
 
             if (wglFormat != pixFormat && wglFormat != 0)
             {
@@ -68,7 +68,7 @@ public:
             }
 
             if (contextToShareWith != nullptr)
-                wglShareLists (contextToShareWith->renderContext, renderContext);
+                wglShareLists ((HGLRC) contextToShareWith, renderContext);
 
             component.getTopLevelComponent()->repaint();
             component.repaint();
@@ -81,9 +81,10 @@ public:
         releaseDC();
     }
 
-    void initialiseOnRenderThread() {}
-    void shutdownOnRenderThread() {}
+    void initialiseOnRenderThread (OpenGLContext&) {}
+    void shutdownOnRenderThread()           { deactivateCurrentContext(); }
 
+    static void deactivateCurrentContext()  { wglMakeCurrent (0, 0); }
     bool makeActive() const noexcept        { return wglMakeCurrent (dc, renderContext) != FALSE; }
     bool isActive() const noexcept          { return wglGetCurrentContext() == renderContext; }
     void swapBuffers() const noexcept       { SwapBuffers (dc); }
@@ -196,6 +197,8 @@ private:
             atts[n++] = WGL_SUPPORT_OPENGL_ARB;   atts[n++] = GL_TRUE;
             atts[n++] = WGL_DOUBLE_BUFFER_ARB;    atts[n++] = GL_TRUE;
             atts[n++] = WGL_PIXEL_TYPE_ARB;       atts[n++] = WGL_TYPE_RGBA_ARB;
+            atts[n++] = WGL_ACCELERATION_ARB;
+            atts[n++] = WGL_FULL_ACCELERATION_ARB;
 
             atts[n++] = WGL_COLOR_BITS_ARB;  atts[n++] = pixelFormat.redBits + pixelFormat.greenBits + pixelFormat.blueBits;
             atts[n++] = WGL_RED_BITS_ARB;    atts[n++] = pixelFormat.redBits;
@@ -229,7 +232,7 @@ private:
         return format;
     }
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NativeContext);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NativeContext)
 };
 
 

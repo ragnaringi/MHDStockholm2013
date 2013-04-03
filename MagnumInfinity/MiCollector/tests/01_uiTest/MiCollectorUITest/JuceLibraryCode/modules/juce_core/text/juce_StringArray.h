@@ -53,6 +53,12 @@ public:
     /** Creates an array containing a single string. */
     explicit StringArray (const String& firstValue);
 
+    /** Creates an array from a raw array of strings.
+        @param strings          an array of strings to add
+        @param numberOfStrings  how many items there are in the array
+    */
+    StringArray (const String* strings, int numberOfStrings);
+
     /** Creates a copy of an array of string literals.
         @param strings          an array of strings to add. Null pointers in the array will be
                                 treated as empty strings
@@ -90,6 +96,9 @@ public:
     StringArray& operator= (StringArray&& other) noexcept;
    #endif
 
+    /** Swaps the contents of this and another StringArray. */
+    void swapWith (StringArray& other) noexcept;
+
     //==============================================================================
     /** Compares two arrays.
         Comparisons are case-sensitive.
@@ -121,6 +130,22 @@ public:
         the index is in-range.
     */
     String& getReference (int index) noexcept;
+
+    /** Returns a pointer to the first String in the array.
+        This method is provided for compatibility with standard C++ iteration mechanisms.
+    */
+    inline String* begin() const noexcept
+    {
+        return strings.begin();
+    }
+
+    /** Returns a pointer to the String which follows the last element in the array.
+        This method is provided for compatibility with standard C++ iteration mechanisms.
+    */
+    inline String* end() const noexcept
+    {
+        return strings.end();
+    }
 
     /** Searches for a string in the array.
 
@@ -341,7 +366,7 @@ private:
     //==============================================================================
     Array <String> strings;
 
-    JUCE_LEAK_DETECTOR (StringArray);
+    JUCE_LEAK_DETECTOR (StringArray)
 };
 
 

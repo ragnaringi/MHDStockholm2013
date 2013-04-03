@@ -37,45 +37,78 @@ public:
     //==============================================================================
     MidiDataConcatenator (const int initialBufferSize)
         : pendingData ((size_t) initialBufferSize),
-          pendingBytes (0), pendingDataTime (0)
+          pendingDataTime (0), pendingBytes (0), runningStatus (0)
     {
     }
 
     void reset()
     {
         pendingBytes = 0;
+        runningStatus = 0;
         pendingDataTime = 0;
     }
 
-    void pushMidiData (const void* data, int numBytes, double time,
-                       MidiInput* input, MidiInputCallback& callback)
+    template <typename UserDataType, typename CallbackType>
+    void pushMidiData (const void* inputData, int numBytes, double time,
+                       UserDataType* input, CallbackType& callback)
     {
-        const uint8* d = static_cast <const uint8*> (data);
+        const uint8* d = static_cast <const uint8*> (inputData);
 
         while (numBytes > 0)
         {
             if (pendingBytes > 0 || d[0] == 0xf0)
             {
                 processSysex (d, numBytes, time, input, callback);
+                runningStatus = 0;
             }
             else
             {
-                int used = 0;
-                const MidiMessage m (d, numBytes, used, 0, time);
+                int len = 0;
+                uint8 data[3];
 
-                if (used <= 0)
-                    break; // malformed message..
+                while (numBytes > 0)
+                {
+                    // If there's a realtime message embedded in the middle of
+                    // the normal message, handle it now..
+                    if (*d >= 0xf8 && *d <= 0xfe)
+                    {
+                        const MidiMessage m (*d++, time);
+                        callback.handleIncomingMidiMessage (input, m);
+                        --numBytes;
+                    }
+                    else
+                    {
+                        if (len == 0 && *d < 0x80 && runningStatus >= 0x80)
+                            data[len++] = runningStatus;
 
-                callback.handleIncomingMidiMessage (input, m);
-                numBytes -= used;
-                d += used;
+                        data[len++] = *d++;
+                        --numBytes;
+
+                        if (len >= MidiMessage::getMessageLengthFromFirstByte (data[0]))
+                            break;
+                    }
+                }
+
+                if (len > 0)
+                {
+                    int used = 0;
+                    const MidiMessage m (data, len, used, 0, time);
+
+                    if (used <= 0)
+                        break; // malformed message..
+
+                    jassert (used == len);
+                    callback.handleIncomingMidiMessage (input, m);
+                    runningStatus = data[0];
+                }
             }
         }
     }
 
 private:
+    template <typename UserDataType, typename CallbackType>
     void processSysex (const uint8*& d, int& numBytes, double time,
-                       MidiInput* input, MidiInputCallback& callback)
+                       UserDataType* input, CallbackType& callback)
     {
         if (*d == 0xf0)
         {
@@ -133,10 +166,11 @@ private:
     }
 
     MemoryBlock pendingData;
-    int pendingBytes;
     double pendingDataTime;
+    int pendingBytes;
+    uint8 runningStatus;
 
-    JUCE_DECLARE_NON_COPYABLE (MidiDataConcatenator);
+    JUCE_DECLARE_NON_COPYABLE (MidiDataConcatenator)
 };
 
 #endif   // __JUCE_MIDIDATACONCATENATOR_JUCEHEADER__

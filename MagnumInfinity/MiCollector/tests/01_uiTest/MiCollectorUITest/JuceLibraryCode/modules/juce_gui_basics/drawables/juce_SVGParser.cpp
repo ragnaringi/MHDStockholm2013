@@ -38,7 +38,7 @@ public:
     //==============================================================================
     Drawable* parseSVGElement (const XmlElement& xml)
     {
-        if (! xml.hasTagName ("svg"))
+        if (! xml.hasTagNameIgnoringNamespace ("svg"))
             return nullptr;
 
         DrawableComposite* const drawable = new DrawableComposite();
@@ -50,27 +50,27 @@ public:
         if (xml.hasAttribute ("transform"))
             newState.addTransform (xml);
 
-        newState.elementX = getCoordLength (xml.getStringAttribute ("x", String (newState.elementX)), viewBoxW);
-        newState.elementY = getCoordLength (xml.getStringAttribute ("y", String (newState.elementY)), viewBoxH);
-        newState.width    = getCoordLength (xml.getStringAttribute ("width", String (newState.width)), viewBoxW);
-        newState.height   = getCoordLength (xml.getStringAttribute ("height", String (newState.height)), viewBoxH);
+        newState.elementX = getCoordLength (xml.getStringAttribute ("x",      String (newState.elementX)), viewBoxW);
+        newState.elementY = getCoordLength (xml.getStringAttribute ("y",      String (newState.elementY)), viewBoxH);
+        newState.width    = getCoordLength (xml.getStringAttribute ("width",  String (newState.width)),    viewBoxW);
+        newState.height   = getCoordLength (xml.getStringAttribute ("height", String (newState.height)),   viewBoxH);
 
-        if (newState.width <= 0)  newState.width  = 100;
+        if (newState.width  <= 0) newState.width  = 100;
         if (newState.height <= 0) newState.height = 100;
 
         if (xml.hasAttribute ("viewBox"))
         {
             const String viewBoxAtt (xml.getStringAttribute ("viewBox"));
             String::CharPointerType viewParams (viewBoxAtt.getCharPointer());
-            float vx, vy, vw, vh;
+            Point<float> vxy, vwh;
 
-            if (parseCoords (viewParams, vx, vy, true)
-                 && parseCoords (viewParams, vw, vh, true)
-                 && vw > 0
-                 && vh > 0)
+            if (parseCoords (viewParams, vxy, true)
+                 && parseCoords (viewParams, vwh, true)
+                 && vwh.x > 0
+                 && vwh.y > 0)
             {
-                newState.viewBoxW = vw;
-                newState.viewBoxH = vh;
+                newState.viewBoxW = vwh.x;
+                newState.viewBoxH = vwh.y;
 
                 int placementFlags = 0;
 
@@ -82,44 +82,34 @@ public:
                 }
                 else
                 {
-                    if (aspect.containsIgnoreCase ("slice"))
-                        placementFlags |= RectanglePlacement::fillDestination;
+                    if (aspect.containsIgnoreCase ("slice"))        placementFlags |= RectanglePlacement::fillDestination;
 
-                    if (aspect.containsIgnoreCase ("xMin"))
-                        placementFlags |= RectanglePlacement::xLeft;
-                    else if (aspect.containsIgnoreCase ("xMax"))
-                        placementFlags |= RectanglePlacement::xRight;
-                    else
-                        placementFlags |= RectanglePlacement::xMid;
+                    if (aspect.containsIgnoreCase ("xMin"))         placementFlags |= RectanglePlacement::xLeft;
+                    else if (aspect.containsIgnoreCase ("xMax"))    placementFlags |= RectanglePlacement::xRight;
+                    else                                            placementFlags |= RectanglePlacement::xMid;
 
-                    if (aspect.containsIgnoreCase ("yMin"))
-                        placementFlags |= RectanglePlacement::yTop;
-                    else if (aspect.containsIgnoreCase ("yMax"))
-                        placementFlags |= RectanglePlacement::yBottom;
-                    else
-                        placementFlags |= RectanglePlacement::yMid;
+                    if (aspect.containsIgnoreCase ("yMin"))         placementFlags |= RectanglePlacement::yTop;
+                    else if (aspect.containsIgnoreCase ("yMax"))    placementFlags |= RectanglePlacement::yBottom;
+                    else                                            placementFlags |= RectanglePlacement::yMid;
                 }
 
-                const RectanglePlacement placement (placementFlags);
-
-                newState.transform
-                    = placement.getTransformToFit (Rectangle<float> (vx, vy, vw, vh),
-                                                   Rectangle<float> (0.0f, 0.0f, newState.width, newState.height))
-                               .followedBy (newState.transform);
+                newState.transform = RectanglePlacement (placementFlags)
+                                        .getTransformToFit (Rectangle<float> (vxy.x, vxy.y, vwh.x, vwh.y),
+                                                            Rectangle<float> (newState.width, newState.height))
+                                        .followedBy (newState.transform);
             }
         }
         else
         {
-            if (viewBoxW == 0)
-                newState.viewBoxW = newState.width;
-
-            if (viewBoxH == 0)
-                newState.viewBoxH = newState.height;
+            if (viewBoxW == 0)  newState.viewBoxW = newState.width;
+            if (viewBoxH == 0)  newState.viewBoxH = newState.height;
         }
 
-        newState.parseSubElements (xml, drawable);
+        newState.parseSubElements (xml, *drawable);
 
-        drawable->resetContentAreaAndBoundingBoxToFitChildren();
+        drawable->setContentArea (RelativeRectangle (Rectangle<float> (newState.viewBoxW, newState.viewBoxH)));
+        drawable->resetBoundingBoxToContentArea();
+
         return drawable;
     }
 
@@ -131,34 +121,35 @@ private:
     String cssStyleText;
 
     //==============================================================================
-    void parseSubElements (const XmlElement& xml, DrawableComposite* const parentDrawable)
+    void parseSubElements (const XmlElement& xml, DrawableComposite& parentDrawable)
     {
         forEachXmlChildElement (xml, e)
-        {
-            Drawable* d = nullptr;
+            parentDrawable.addAndMakeVisible (parseSubElement (*e));
+    }
 
-            if (e->hasTagName ("g"))                d = parseGroupElement (*e);
-            else if (e->hasTagName ("svg"))         d = parseSVGElement (*e);
-            else if (e->hasTagName ("path"))        d = parsePath (*e);
-            else if (e->hasTagName ("rect"))        d = parseRect (*e);
-            else if (e->hasTagName ("circle"))      d = parseCircle (*e);
-            else if (e->hasTagName ("ellipse"))     d = parseEllipse (*e);
-            else if (e->hasTagName ("line"))        d = parseLine (*e);
-            else if (e->hasTagName ("polyline"))    d = parsePolygon (*e, true);
-            else if (e->hasTagName ("polygon"))     d = parsePolygon (*e, false);
-            else if (e->hasTagName ("text"))        d = parseText (*e);
-            else if (e->hasTagName ("switch"))      d = parseSwitch (*e);
-            else if (e->hasTagName ("style"))       parseCSSStyle (*e);
+    Drawable* parseSubElement (const XmlElement& xml)
+    {
+        const String tag (xml.getTagNameWithoutNamespace());
 
-            parentDrawable->addAndMakeVisible (d);
-        }
+        if (tag == "g")           return parseGroupElement (xml);
+        if (tag == "svg")         return parseSVGElement (xml);
+        if (tag == "path")        return parsePath (xml);
+        if (tag == "rect")        return parseRect (xml);
+        if (tag == "circle")      return parseCircle (xml);
+        if (tag == "ellipse")     return parseEllipse (xml);
+        if (tag == "line")        return parseLine (xml);
+        if (tag == "polyline")    return parsePolygon (xml, true);
+        if (tag == "polygon")     return parsePolygon (xml, false);
+        if (tag == "text")        return parseText (xml);
+        if (tag == "switch")      return parseSwitch (xml);
+        if (tag == "style")       parseCSSStyle (xml);
+
+        return nullptr;
     }
 
     DrawableComposite* parseSwitch (const XmlElement& xml)
     {
-        const XmlElement* const group = xml.getChildByName ("g");
-
-        if (group != nullptr)
+        if (const XmlElement* const group = xml.getChildByName ("g"))
             return parseGroupElement (*group);
 
         return nullptr;
@@ -175,11 +166,11 @@ private:
             SVGState newState (*this);
             newState.addTransform (xml);
 
-            newState.parseSubElements (xml, drawable);
+            newState.parseSubElements (xml, *drawable);
         }
         else
         {
-            parseSubElements (xml, drawable);
+            parseSubElements (xml, *drawable);
         }
 
         drawable->resetContentAreaAndBoundingBoxToFitChildren();
@@ -189,15 +180,20 @@ private:
     //==============================================================================
     Drawable* parsePath (const XmlElement& xml) const
     {
-        const String dAttribute (xml.getStringAttribute ("d").trimStart());
-        String::CharPointerType d (dAttribute.getCharPointer());
         Path path;
+        parsePathString (path, xml.getStringAttribute ("d"));
 
         if (getStyleAttribute (&xml, "fill-rule").trim().equalsIgnoreCase ("evenodd"))
             path.setUsingNonZeroWinding (false);
 
-        float lastX = 0, lastY = 0;
-        float lastX2 = 0, lastY2 = 0;
+        return parseShape (xml, path);
+    }
+
+    void parsePathString (Path& path, const String& pathString) const
+    {
+        String::CharPointerType d (pathString.getCharPointer().findEndOfWhitespace());
+
+        Point<float> subpathStart, last, last2, p1, p2, p3;
         juce_wchar lastCommandChar = 0;
         bool isRelative = true;
         bool carryOn = true;
@@ -206,8 +202,6 @@ private:
 
         while (! d.isEmpty())
         {
-            float x, y, x2, y2, x3, y3;
-
             if (validCommandChars.indexOf (*d) >= 0)
             {
                 lastCommandChar = d.getAndAdvance();
@@ -220,45 +214,36 @@ private:
             case 'm':
             case 'L':
             case 'l':
-                if (parseCoords (d, x, y, false))
+                if (parseCoordsOrSkip (d, p1, false))
                 {
                     if (isRelative)
-                    {
-                        x += lastX;
-                        y += lastY;
-                    }
+                        p1 += last;
 
                     if (lastCommandChar == 'M' || lastCommandChar == 'm')
                     {
-                        path.startNewSubPath (x, y);
+                        subpathStart = p1;
+                        path.startNewSubPath (p1);
                         lastCommandChar = 'l';
                     }
                     else
-                        path.lineTo (x, y);
+                        path.lineTo (p1);
 
-                    lastX2 = lastX;
-                    lastY2 = lastY;
-                    lastX = x;
-                    lastY = y;
+                    last2 = last;
+                    last = p1;
                 }
-                else
-                {
-                    ++d;
-                }
-
                 break;
 
             case 'H':
             case 'h':
-                if (parseCoord (d, x, false, true))
+                if (parseCoord (d, p1.x, false, true))
                 {
                     if (isRelative)
-                        x += lastX;
+                        p1.x += last.x;
 
-                    path.lineTo (x, lastY);
+                    path.lineTo (p1.x, last.y);
 
-                    lastX2 = lastX;
-                    lastX = x;
+                    last2.x = last.x;
+                    last.x = p1.x;
                 }
                 else
                 {
@@ -268,15 +253,15 @@ private:
 
             case 'V':
             case 'v':
-                if (parseCoord (d, y, false, false))
+                if (parseCoord (d, p1.y, false, false))
                 {
                     if (isRelative)
-                        y += lastY;
+                        p1.y += last.y;
 
-                    path.lineTo (lastX, y);
+                    path.lineTo (last.x, p1.y);
 
-                    lastY2 = lastY;
-                    lastY = y;
+                    last2.y = last.y;
+                    last.y = p1.y;
                 }
                 else
                 {
@@ -286,115 +271,79 @@ private:
 
             case 'C':
             case 'c':
-                if (parseCoords (d, x, y, false)
-                     && parseCoords (d, x2, y2, false)
-                     && parseCoords (d, x3, y3, false))
+                if (parseCoordsOrSkip (d, p1, false)
+                     && parseCoordsOrSkip (d, p2, false)
+                     && parseCoordsOrSkip (d, p3, false))
                 {
                     if (isRelative)
                     {
-                        x += lastX;
-                        y += lastY;
-                        x2 += lastX;
-                        y2 += lastY;
-                        x3 += lastX;
-                        y3 += lastY;
+                        p1 += last;
+                        p2 += last;
+                        p3 += last;
                     }
 
-                    path.cubicTo (x, y, x2, y2, x3, y3);
+                    path.cubicTo (p1, p2, p3);
 
-                    lastX2 = x2;
-                    lastY2 = y2;
-                    lastX = x3;
-                    lastY = y3;
-                }
-                else
-                {
-                    ++d;
+                    last2 = p2;
+                    last = p3;
                 }
                 break;
 
             case 'S':
             case 's':
-                if (parseCoords (d, x, y, false)
-                     && parseCoords (d, x3, y3, false))
+                if (parseCoordsOrSkip (d, p1, false)
+                     && parseCoordsOrSkip (d, p3, false))
                 {
                     if (isRelative)
                     {
-                        x += lastX;
-                        y += lastY;
-                        x3 += lastX;
-                        y3 += lastY;
+                        p1 += last;
+                        p3 += last;
                     }
 
-                    x2 = lastX + (lastX - lastX2);
-                    y2 = lastY + (lastY - lastY2);
-                    path.cubicTo (x2, y2, x, y, x3, y3);
+                    p2 = last + (last - last2);
+                    path.cubicTo (p2, p1, p3);
 
-                    lastX2 = x;
-                    lastY2 = y;
-                    lastX = x3;
-                    lastY = y3;
-                }
-                else
-                {
-                    ++d;
+                    last2 = p1;
+                    last = p3;
                 }
                 break;
 
             case 'Q':
             case 'q':
-                if (parseCoords (d, x, y, false)
-                     && parseCoords (d, x2, y2, false))
+                if (parseCoordsOrSkip (d, p1, false)
+                     && parseCoordsOrSkip (d, p2, false))
                 {
                     if (isRelative)
                     {
-                        x += lastX;
-                        y += lastY;
-                        x2 += lastX;
-                        y2 += lastY;
+                        p1 += last;
+                        p2 += last;
                     }
 
-                    path.quadraticTo (x, y, x2, y2);
+                    path.quadraticTo (p1, p2);
 
-                    lastX2 = x;
-                    lastY2 = y;
-                    lastX = x2;
-                    lastY = y2;
-                }
-                else
-                {
-                    ++d;
+                    last2 = p1;
+                    last = p2;
                 }
                 break;
 
             case 'T':
             case 't':
-                if (parseCoords (d, x, y, false))
+                if (parseCoordsOrSkip (d, p1, false))
                 {
                     if (isRelative)
-                    {
-                        x += lastX;
-                        y += lastY;
-                    }
+                        p1 += last;
 
-                    x2 = lastX + (lastX - lastX2);
-                    y2 = lastY + (lastY - lastY2);
-                    path.quadraticTo (x2, y2, x, y);
+                    p2 = last + (last - last2);
+                    path.quadraticTo (p2, p1);
 
-                    lastX2 = x2;
-                    lastY2 = y2;
-                    lastX = x;
-                    lastY = y;
-                }
-                else
-                {
-                    ++d;
+                    last2 = p2;
+                    last = p1;
                 }
                 break;
 
             case 'A':
             case 'a':
-                if (parseCoords (d, x, y, false))
+                if (parseCoordsOrSkip (d, p1, false))
                 {
                     String num;
 
@@ -410,20 +359,17 @@ private:
                             {
                                 const bool sweep = num.getIntValue() != 0;
 
-                                if (parseCoords (d, x2, y2, false))
+                                if (parseCoordsOrSkip (d, p2, false))
                                 {
                                     if (isRelative)
-                                    {
-                                        x2 += lastX;
-                                        y2 += lastY;
-                                    }
+                                        p2 += last;
 
-                                    if (lastX != x2 || lastY != y2)
+                                    if (last != p2)
                                     {
                                         double centreX, centreY, startAngle, deltaAngle;
-                                        double rx = x, ry = y;
+                                        double rx = p1.x, ry = p1.y;
 
-                                        endpointToCentreParameters (lastX, lastY, x2, y2,
+                                        endpointToCentreParameters (last.x, last.y, p2.x, p2.y,
                                                                     angle, largeArc, sweep,
                                                                     rx, ry, centreX, centreY,
                                                                     startAngle, deltaAngle);
@@ -433,21 +379,15 @@ private:
                                                             angle, (float) startAngle, (float) (startAngle + deltaAngle),
                                                             false);
 
-                                        path.lineTo (x2, y2);
+                                        path.lineTo (p2);
                                     }
 
-                                    lastX2 = lastX;
-                                    lastY2 = lastY;
-                                    lastX = x2;
-                                    lastY = y2;
+                                    last2 = last;
+                                    last = p2;
                                 }
                             }
                         }
                     }
-                }
-                else
-                {
-                    ++d;
                 }
 
                 break;
@@ -455,7 +395,9 @@ private:
             case 'Z':
             case 'z':
                 path.closeSubPath();
+                last = last2 = subpathStart;
                 d = d.findEndOfWhitespace();
+                lastCommandChar = 'M';
                 break;
 
             default:
@@ -466,8 +408,6 @@ private:
             if (! carryOn)
                 break;
         }
-
-        return parseShape (xml, path);
     }
 
     Drawable* parseRect (const XmlElement& xml) const
@@ -479,26 +419,26 @@ private:
 
         if (hasRX || hasRY)
         {
-            float rx = getCoordLength (xml.getStringAttribute ("rx"), viewBoxW);
-            float ry = getCoordLength (xml.getStringAttribute ("ry"), viewBoxH);
+            float rx = getCoordLength (xml, "rx", viewBoxW);
+            float ry = getCoordLength (xml, "ry", viewBoxH);
 
             if (! hasRX)
                 rx = ry;
             else if (! hasRY)
                 ry = rx;
 
-            rect.addRoundedRectangle (getCoordLength (xml.getStringAttribute ("x"), viewBoxW),
-                                      getCoordLength (xml.getStringAttribute ("y"), viewBoxH),
-                                      getCoordLength (xml.getStringAttribute ("width"), viewBoxW),
-                                      getCoordLength (xml.getStringAttribute ("height"), viewBoxH),
+            rect.addRoundedRectangle (getCoordLength (xml, "x", viewBoxW),
+                                      getCoordLength (xml, "y", viewBoxH),
+                                      getCoordLength (xml, "width", viewBoxW),
+                                      getCoordLength (xml, "height", viewBoxH),
                                       rx, ry);
         }
         else
         {
-            rect.addRectangle (getCoordLength (xml.getStringAttribute ("x"), viewBoxW),
-                               getCoordLength (xml.getStringAttribute ("y"), viewBoxH),
-                               getCoordLength (xml.getStringAttribute ("width"), viewBoxW),
-                               getCoordLength (xml.getStringAttribute ("height"), viewBoxH));
+            rect.addRectangle (getCoordLength (xml, "x", viewBoxW),
+                               getCoordLength (xml, "y", viewBoxH),
+                               getCoordLength (xml, "width", viewBoxW),
+                               getCoordLength (xml, "height", viewBoxH));
         }
 
         return parseShape (xml, rect);
@@ -508,9 +448,9 @@ private:
     {
         Path circle;
 
-        const float cx = getCoordLength (xml.getStringAttribute ("cx"), viewBoxW);
-        const float cy = getCoordLength (xml.getStringAttribute ("cy"), viewBoxH);
-        const float radius = getCoordLength (xml.getStringAttribute ("r"), viewBoxW);
+        const float cx = getCoordLength (xml, "cx", viewBoxW);
+        const float cy = getCoordLength (xml, "cy", viewBoxH);
+        const float radius = getCoordLength (xml, "r", viewBoxW);
 
         circle.addEllipse (cx - radius, cy - radius, radius * 2.0f, radius * 2.0f);
 
@@ -521,10 +461,10 @@ private:
     {
         Path ellipse;
 
-        const float cx      = getCoordLength (xml.getStringAttribute ("cx"), viewBoxW);
-        const float cy      = getCoordLength (xml.getStringAttribute ("cy"), viewBoxH);
-        const float radiusX = getCoordLength (xml.getStringAttribute ("rx"), viewBoxW);
-        const float radiusY = getCoordLength (xml.getStringAttribute ("ry"), viewBoxH);
+        const float cx      = getCoordLength (xml, "cx", viewBoxW);
+        const float cy      = getCoordLength (xml, "cy", viewBoxH);
+        const float radiusX = getCoordLength (xml, "rx", viewBoxW);
+        const float radiusY = getCoordLength (xml, "ry", viewBoxH);
 
         ellipse.addEllipse (cx - radiusX, cy - radiusY, radiusX * 2.0f, radiusY * 2.0f);
 
@@ -535,10 +475,10 @@ private:
     {
         Path line;
 
-        const float x1 = getCoordLength (xml.getStringAttribute ("x1"), viewBoxW);
-        const float y1 = getCoordLength (xml.getStringAttribute ("y1"), viewBoxH);
-        const float x2 = getCoordLength (xml.getStringAttribute ("x2"), viewBoxW);
-        const float y2 = getCoordLength (xml.getStringAttribute ("y2"), viewBoxH);
+        const float x1 = getCoordLength (xml, "x1", viewBoxW);
+        const float y1 = getCoordLength (xml, "y1", viewBoxH);
+        const float x2 = getCoordLength (xml, "x2", viewBoxW);
+        const float y2 = getCoordLength (xml, "y2", viewBoxH);
 
         line.startNewSubPath (x1, y1);
         line.lineTo (x2, y2);
@@ -551,24 +491,21 @@ private:
         const String pointsAtt (xml.getStringAttribute ("points"));
         String::CharPointerType points (pointsAtt.getCharPointer());
         Path path;
-        float x, y;
+        Point<float> p;
 
-        if (parseCoords (points, x, y, true))
+        if (parseCoords (points, p, true))
         {
-            float firstX = x;
-            float firstY = y;
-            float lastX = 0, lastY = 0;
+            Point<float> first (p), last;
 
-            path.startNewSubPath (x, y);
+            path.startNewSubPath (first);
 
-            while (parseCoords (points, x, y, true))
+            while (parseCoords (points, p, true))
             {
-                lastX = x;
-                lastY = y;
-                path.lineTo (x, y);
+                last = p;
+                path.lineTo (p);
             }
 
-            if ((! isPolyline) || (firstX == lastX && firstY == lastY))
+            if ((! isPolyline) || first == last)
                 path.closeSubPath();
         }
 
@@ -640,24 +577,136 @@ private:
 
     void addGradientStopsIn (ColourGradient& cg, const XmlElement* const fillXml) const
     {
-        if (fillXml == 0)
-            return;
-
-        forEachXmlChildElementWithTagName (*fillXml, e, "stop")
+        if (fillXml != nullptr)
         {
-            int index = 0;
-            Colour col (parseColour (getStyleAttribute  (e, "stop-color"), index, Colours::black));
+            forEachXmlChildElementWithTagName (*fillXml, e, "stop")
+            {
+                int index = 0;
+                Colour col (parseColour (getStyleAttribute  (e, "stop-color"), index, Colours::black));
 
-            const String opacity (getStyleAttribute (e, "stop-opacity", "1"));
-            col = col.withMultipliedAlpha (jlimit (0.0f, 1.0f, opacity.getFloatValue()));
+                const String opacity (getStyleAttribute (e, "stop-opacity", "1"));
+                col = col.withMultipliedAlpha (jlimit (0.0f, 1.0f, opacity.getFloatValue()));
 
-            double offset = e->getDoubleAttribute ("offset");
+                double offset = e->getDoubleAttribute ("offset");
 
-            if (e->getStringAttribute ("offset").containsChar ('%'))
-                offset *= 0.01;
+                if (e->getStringAttribute ("offset").containsChar ('%'))
+                    offset *= 0.01;
 
-            cg.addColour (jlimit (0.0, 1.0, offset), col);
+                cg.addColour (jlimit (0.0, 1.0, offset), col);
+            }
         }
+    }
+
+    FillType getGradientFillType (const XmlElement* fillXml,
+                                  const Path& path,
+                                  const float opacity) const
+    {
+        ColourGradient gradient;
+
+        addGradientStopsIn (gradient, findLinkedElement (fillXml));
+        addGradientStopsIn (gradient, fillXml);
+
+        if (gradient.getNumColours() > 0)
+        {
+            gradient.addColour (0.0, gradient.getColour (0));
+            gradient.addColour (1.0, gradient.getColour (gradient.getNumColours() - 1));
+        }
+        else
+        {
+            gradient.addColour (0.0, Colours::black);
+            gradient.addColour (1.0, Colours::black);
+        }
+
+        if (opacity < 1.0f)
+            gradient.multiplyOpacity (opacity);
+
+        jassert (gradient.getNumColours() > 0);
+
+        gradient.isRadial = fillXml->hasTagNameIgnoringNamespace ("radialGradient");
+
+        float gradientWidth = viewBoxW;
+        float gradientHeight = viewBoxH;
+        float dx = 0.0f;
+        float dy = 0.0f;
+
+        const bool userSpace = fillXml->getStringAttribute ("gradientUnits").equalsIgnoreCase ("userSpaceOnUse");
+
+        if (! userSpace)
+        {
+            const Rectangle<float> bounds (path.getBounds());
+            dx = bounds.getX();
+            dy = bounds.getY();
+            gradientWidth = bounds.getWidth();
+            gradientHeight = bounds.getHeight();
+        }
+
+        if (gradient.isRadial)
+        {
+            if (userSpace)
+                gradient.point1.setXY (dx + getCoordLength (fillXml->getStringAttribute ("cx", "50%"), gradientWidth),
+                                       dy + getCoordLength (fillXml->getStringAttribute ("cy", "50%"), gradientHeight));
+            else
+                gradient.point1.setXY (dx + gradientWidth  * getCoordLength (fillXml->getStringAttribute ("cx", "50%"), 1.0f),
+                                       dy + gradientHeight * getCoordLength (fillXml->getStringAttribute ("cy", "50%"), 1.0f));
+
+            const float radius = getCoordLength (fillXml->getStringAttribute ("r", "50%"), gradientWidth);
+            gradient.point2 = gradient.point1 + Point<float> (radius, 0.0f);
+
+            //xxx (the fx, fy focal point isn't handled properly here..)
+        }
+        else
+        {
+            if (userSpace)
+            {
+                gradient.point1.setXY (dx + getCoordLength (fillXml->getStringAttribute ("x1", "0%"), gradientWidth),
+                                       dy + getCoordLength (fillXml->getStringAttribute ("y1", "0%"), gradientHeight));
+
+                gradient.point2.setXY (dx + getCoordLength (fillXml->getStringAttribute ("x2", "100%"), gradientWidth),
+                                       dy + getCoordLength (fillXml->getStringAttribute ("y2", "0%"), gradientHeight));
+            }
+            else
+            {
+                gradient.point1.setXY (dx + gradientWidth  * getCoordLength (fillXml->getStringAttribute ("x1", "0%"), 1.0f),
+                                       dy + gradientHeight * getCoordLength (fillXml->getStringAttribute ("y1", "0%"), 1.0f));
+
+                gradient.point2.setXY (dx + gradientWidth  * getCoordLength (fillXml->getStringAttribute ("x2", "100%"), 1.0f),
+                                       dy + gradientHeight * getCoordLength (fillXml->getStringAttribute ("y2", "0%"), 1.0f));
+            }
+
+            if (gradient.point1 == gradient.point2)
+                return Colour (gradient.getColour (gradient.getNumColours() - 1));
+        }
+
+        FillType type (gradient);
+
+        const AffineTransform gradientTransform (parseTransform (fillXml->getStringAttribute ("gradientTransform"))
+                                                    .followedBy (transform));
+
+        if (gradient.isRadial)
+        {
+            type.transform = gradientTransform;
+        }
+        else
+        {
+            // Transform the perpendicular vector into the new coordinate space for the gradient.
+            // This vector is now the slope of the linear gradient as it should appear in the new coord space
+            const Point<float> perpendicular (Point<float> (gradient.point2.y - gradient.point1.y,
+                                                            gradient.point1.x - gradient.point2.x)
+                                                  .transformedBy (gradientTransform.withAbsoluteTranslation (0, 0)));
+
+            const Point<float> newGradPoint1 (gradient.point1.transformedBy (gradientTransform));
+            const Point<float> newGradPoint2 (gradient.point2.transformedBy (gradientTransform));
+
+            // Project the transformed gradient vector onto the transformed slope of the linear
+            // gradient as it should appear in the new coordinate space
+            const float scale = perpendicular.getDotProduct (newGradPoint2 - newGradPoint1)
+                                  / perpendicular.getDotProduct (perpendicular);
+
+            type.gradient->point1 = newGradPoint1;
+            type.gradient->point2 = newGradPoint2 - perpendicular * scale;
+        }
+
+        return type;
     }
 
     FillType getPathFillType (const Path& path,
@@ -679,103 +728,17 @@ private:
             const String id (fill.fromFirstOccurrenceOf ("#", false, false)
                                  .upToLastOccurrenceOf (")", false, false).trim());
 
-            const XmlElement* const fillXml = findElementForId (topLevelXml, id);
-
-            if (fillXml != nullptr
-                 && (fillXml->hasTagName ("linearGradient")
-                      || fillXml->hasTagName ("radialGradient")))
-            {
-                const XmlElement* inheritedFrom = findLinkedElement (fillXml);
-
-                ColourGradient gradient;
-
-                addGradientStopsIn (gradient, inheritedFrom);
-                addGradientStopsIn (gradient, fillXml);
-
-                if (gradient.getNumColours() > 0)
-                {
-                    gradient.addColour (0.0, gradient.getColour (0));
-                    gradient.addColour (1.0, gradient.getColour (gradient.getNumColours() - 1));
-                }
-                else
-                {
-                    gradient.addColour (0.0, Colours::black);
-                    gradient.addColour (1.0, Colours::black);
-                }
-
-                if (overallOpacity.isNotEmpty())
-                    gradient.multiplyOpacity (overallOpacity.getFloatValue());
-
-                jassert (gradient.getNumColours() > 0);
-
-                gradient.isRadial = fillXml->hasTagName ("radialGradient");
-
-                float gradientWidth = viewBoxW;
-                float gradientHeight = viewBoxH;
-                float dx = 0.0f;
-                float dy = 0.0f;
-
-                const bool userSpace = fillXml->getStringAttribute ("gradientUnits").equalsIgnoreCase ("userSpaceOnUse");
-
-                if (! userSpace)
-                {
-                    const Rectangle<float> bounds (path.getBounds());
-                    dx = bounds.getX();
-                    dy = bounds.getY();
-                    gradientWidth = bounds.getWidth();
-                    gradientHeight = bounds.getHeight();
-                }
-
-                if (gradient.isRadial)
-                {
-                    if (userSpace)
-                        gradient.point1.setXY (dx + getCoordLength (fillXml->getStringAttribute ("cx", "50%"), gradientWidth),
-                                               dy + getCoordLength (fillXml->getStringAttribute ("cy", "50%"), gradientHeight));
-                    else
-                        gradient.point1.setXY (dx + gradientWidth * getCoordLength (fillXml->getStringAttribute ("cx", "50%"), 1.0f),
-                                               dy + gradientHeight * getCoordLength (fillXml->getStringAttribute ("cy", "50%"), 1.0f));
-
-                    const float radius = getCoordLength (fillXml->getStringAttribute ("r", "50%"), gradientWidth);
-                    gradient.point2 = gradient.point1 + Point<float> (radius, 0.0f);
-
-                    //xxx (the fx, fy focal point isn't handled properly here..)
-                }
-                else
-                {
-                    if (userSpace)
-                    {
-                        gradient.point1.setXY (dx + getCoordLength (fillXml->getStringAttribute ("x1", "0%"), gradientWidth),
-                                               dy + getCoordLength (fillXml->getStringAttribute ("y1", "0%"), gradientHeight));
-
-                        gradient.point2.setXY (dx + getCoordLength (fillXml->getStringAttribute ("x2", "100%"), gradientWidth),
-                                               dy + getCoordLength (fillXml->getStringAttribute ("y2", "0%"), gradientHeight));
-                    }
-                    else
-                    {
-                        gradient.point1.setXY (dx + gradientWidth * getCoordLength (fillXml->getStringAttribute ("x1", "0%"), 1.0f),
-                                               dy + gradientHeight * getCoordLength (fillXml->getStringAttribute ("y1", "0%"), 1.0f));
-
-                        gradient.point2.setXY (dx + gradientWidth * getCoordLength (fillXml->getStringAttribute ("x2", "100%"), 1.0f),
-                                               dy + gradientHeight * getCoordLength (fillXml->getStringAttribute ("y2", "0%"), 1.0f));
-                    }
-
-                    if (gradient.point1 == gradient.point2)
-                        return Colour (gradient.getColour (gradient.getNumColours() - 1));
-                }
-
-                FillType type (gradient);
-                type.transform = parseTransform (fillXml->getStringAttribute ("gradientTransform"))
-                                   .followedBy (transform);
-                return type;
-            }
+            if (const XmlElement* const fillXml = findElementForId (topLevelXml, id))
+                if (fillXml->hasTagNameIgnoringNamespace ("linearGradient")
+                     || fillXml->hasTagNameIgnoringNamespace ("radialGradient"))
+                    return getGradientFillType (fillXml, path, opacity);
         }
 
         if (fill.equalsIgnoreCase ("none"))
             return Colours::transparentBlack;
 
         int i = 0;
-        const Colour colour (parseColour (fill, i, defaultColour));
-        return colour.withMultipliedAlpha (opacity);
+        return parseColour (fill, i, defaultColour).withMultipliedAlpha (opacity);
     }
 
     PathStrokeType getStrokeFor (const XmlElement* const xml) const
@@ -833,7 +796,7 @@ private:
                 Drawable* s = parseShape (*e, path);
                 delete s;  // xxx not finished!
             }
-            else if (e->hasTagName ("tspan"))
+            else if (e->hasTagNameIgnoringNamespace ("tspan"))
             {
                 Drawable* s = parseText (*e);
                 delete s;  // xxx not finished!
@@ -865,10 +828,19 @@ private:
         return true;
     }
 
-    bool parseCoords (String::CharPointerType& s, float& x, float& y, const bool allowUnits) const
+    bool parseCoords (String::CharPointerType& s, Point<float>& p, const bool allowUnits) const
     {
-        return parseCoord (s, x, allowUnits, true)
-            && parseCoord (s, y, allowUnits, false);
+        return parseCoord (s, p.x, allowUnits, true)
+            && parseCoord (s, p.y, allowUnits, false);
+    }
+
+    bool parseCoordsOrSkip (String::CharPointerType& s, Point<float>& p, const bool allowUnits) const
+    {
+        const bool b = parseCoords (s, p, allowUnits);
+        if (! b)
+            ++s;
+
+        return b;
     }
 
     float getCoordLength (const String& s, const float sizeForProportions) const
@@ -891,6 +863,11 @@ private:
         }
 
         return n;
+    }
+
+    float getCoordLength (const XmlElement& xml, const char* attName, const float sizeForProportions) const
+    {
+        return getCoordLength (xml.getStringAttribute (attName), sizeForProportions);
     }
 
     void getCoordList (Array <float>& coords, const String& list,
@@ -1088,10 +1065,10 @@ private:
                 return Colour ((uint8) (hex [0] * 0x11),
                                (uint8) (hex [1] * 0x11),
                                (uint8) (hex [2] * 0x11));
-            else
-                return Colour ((uint8) ((hex [0] << 4) + hex [1]),
-                               (uint8) ((hex [2] << 4) + hex [3]),
-                               (uint8) ((hex [4] << 4) + hex [5]));
+
+            return Colour ((uint8) ((hex [0] << 4) + hex [1]),
+                           (uint8) ((hex [2] << 4) + hex [3]),
+                           (uint8) ((hex [4] << 4) + hex [5]));
         }
         else if (s [index] == 'r'
                   && s [index + 1] == 'g'
@@ -1156,7 +1133,7 @@ private:
             else if (t.startsWithIgnoreCase ("scale"))
             {
                 if (tokens.size() == 1)
-                    trans = AffineTransform::scale (numbers[0], numbers[0]);
+                    trans = AffineTransform::scale (numbers[0]);
                 else
                     trans = AffineTransform::scale (numbers[0], numbers[1]);
             }
@@ -1223,8 +1200,6 @@ private:
             const double s2 = std::sqrt (s);
             rx *= s2;
             ry *= s2;
-            rx2 = rx * rx;
-            ry2 = ry * ry;
             c = 0;
         }
 
@@ -1275,9 +1250,7 @@ private:
             if (e->compareAttribute ("id", id))
                 return e;
 
-            const XmlElement* const found = findElementForId (e, id);
-
-            if (found != nullptr)
+            if (const XmlElement* const found = findElementForId (e, id))
                 return found;
         }
 

@@ -54,11 +54,23 @@
 
 #if JUCE_PLUGINHOST_VST && JUCE_LINUX
  #include <X11/Xlib.h>
+ #include <X11/Xutil.h>
+ #undef KeyPress
 #endif
 
 //==============================================================================
 namespace juce
 {
+
+static inline bool arrayContainsPlugin (const OwnedArray<PluginDescription>& list,
+                                        const PluginDescription& desc)
+{
+    for (int i = list.size(); --i >= 0;)
+        if (list.getUnchecked(i)->isDuplicateOf (desc))
+            return true;
+
+    return false;
+}
 
 // START_AUTOINCLUDE format/*.cpp, processors/*.cpp, format_types/*.cpp,
 // format_types/*.mm, scanning/*.cpp
@@ -69,6 +81,7 @@ namespace juce
 #include "processors/juce_AudioProcessorGraph.cpp"
 #include "processors/juce_GenericAudioProcessorEditor.cpp"
 #include "processors/juce_PluginDescription.cpp"
+#include "format_types/juce_LADSPAPluginFormat.cpp"
 #include "format_types/juce_VSTPluginFormat.cpp"
 #include "format_types/juce_AudioUnitPluginFormat.mm"
 #include "scanning/juce_KnownPluginList.cpp"

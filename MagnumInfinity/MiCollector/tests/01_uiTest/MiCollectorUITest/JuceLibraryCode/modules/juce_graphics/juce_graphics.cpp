@@ -44,6 +44,11 @@
  #import <QuartzCore/QuartzCore.h>
 
 #elif JUCE_WINDOWS
+ #if JUCE_MINGW && JUCE_USE_DIRECTWRITE
+  #warning "DirectWrite not currently implemented with mingw..."
+  #undef JUCE_USE_DIRECTWRITE
+ #endif
+
  #if JUCE_USE_DIRECTWRITE
   /* If you hit a compile error trying to include these files, you may need to update
      your version of the Windows SDK to the latest one. The DirectWrite and Direct2D
@@ -53,9 +58,17 @@
   #include <dwrite.h>
  #endif
 
+ #if JUCE_MINGW
+  #include <malloc.h>
+ #endif
+
 #elif JUCE_IOS
  #import <QuartzCore/QuartzCore.h>
  #import <CoreText/CoreText.h>
+
+ #if __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_3_2
+  #error "JUCE no longer supports targets earlier than iOS 3.2"
+ #endif
 
 #elif JUCE_LINUX
  #include <ft2build.h>
@@ -63,12 +76,16 @@
  #undef SIZEOF
 #endif
 
+#if (JUCE_MAC || JUCE_IOS) && USE_COREGRAPHICS_RENDERING && JUCE_USE_COREIMAGE_LOADER
+ #define JUCE_USING_COREIMAGE_LOADER 1
+#else
+ #define JUCE_USING_COREIMAGE_LOADER 0
+#endif
+
 //==============================================================================
 namespace juce
 {
 
-// START_AUTOINCLUDE colour/*.cpp, geometry/*.cpp, placement/*.cpp, contexts/*.cpp, images/*.cpp,
-// image_formats/*.cpp, fonts/*.cpp, effects/*.cpp
 #include "colour/juce_Colour.cpp"
 #include "colour/juce_ColourGradient.cpp"
 #include "colour/juce_Colours.cpp"
@@ -92,31 +109,29 @@ namespace juce
 #include "image_formats/juce_JPEGLoader.cpp"
 #include "image_formats/juce_PNGLoader.cpp"
 #include "fonts/juce_AttributedString.cpp"
+#include "fonts/juce_Typeface.cpp"
 #include "fonts/juce_CustomTypeface.cpp"
 #include "fonts/juce_Font.cpp"
 #include "fonts/juce_GlyphArrangement.cpp"
 #include "fonts/juce_TextLayout.cpp"
-#include "fonts/juce_Typeface.cpp"
 #include "effects/juce_DropShadowEffect.cpp"
 #include "effects/juce_GlowEffect.cpp"
-// END_AUTOINCLUDE
 
 //==============================================================================
 #if JUCE_MAC || JUCE_IOS
  #include "../juce_core/native/juce_osx_ObjCHelpers.h"
- #include "../juce_core/native/juce_mac_ObjCSuffix.h"
  #include "native/juce_mac_CoreGraphicsHelpers.h"
  #include "native/juce_mac_Fonts.mm"
  #include "native/juce_mac_CoreGraphicsContext.mm"
 
 #elif JUCE_WINDOWS
  #include "../juce_core/native/juce_win32_ComSmartPtr.h"
- #if JUCE_DIRECT2D
-  #include "native/juce_win32_Direct2DGraphicsContext.cpp"
- #endif
  #include "native/juce_win32_DirectWriteTypeface.cpp"
  #include "native/juce_win32_DirectWriteTypeLayout.cpp"
  #include "native/juce_win32_Fonts.cpp"
+ #if JUCE_DIRECT2D
+  #include "native/juce_win32_Direct2DGraphicsContext.cpp"
+ #endif
 
 #elif JUCE_LINUX
  #include "native/juce_linux_Fonts.cpp"

@@ -46,71 +46,19 @@
 //==============================================================================
 #elif JUCE_WINDOWS
  #include <windowsx.h>
- #include <vfw.h>
- #include <commdlg.h>
-
- #if JUCE_WEB_BROWSER
-  #include <Exdisp.h>
-  #include <exdispid.h>
- #endif
 
  #if JUCE_MSVC && ! JUCE_DONT_AUTOLINK_TO_WIN32_LIBRARIES
-  #pragma comment(lib, "vfw32.lib")
-  #pragma comment(lib, "imm32.lib")
   #pragma comment(lib, "OpenGL32.Lib")
-  #pragma comment(lib, "GlU32.Lib")
- #endif
-
- #if JUCE_QUICKTIME && JUCE_MSVC && ! JUCE_DONT_AUTOLINK_TO_WIN32_LIBRARIES
-  #pragma comment (lib, "QTMLClient.lib")
- #endif
-
- #if JUCE_DIRECT2D && JUCE_MSVC && ! JUCE_DONT_AUTOLINK_TO_WIN32_LIBRARIES
-  #pragma comment (lib, "Dwrite.lib")
-  #pragma comment (lib, "D2d1.lib")
  #endif
 
 //==============================================================================
 #elif JUCE_LINUX
- #include <X11/Xlib.h>
- #include <X11/Xatom.h>
- #include <X11/Xresource.h>
- #include <X11/Xutil.h>
- #include <X11/Xmd.h>
- #include <X11/keysym.h>
- #include <X11/cursorfont.h>
-
- #if JUCE_USE_XINERAMA
-  /* If you're trying to use Xinerama, you'll need to install the "libxinerama-dev" package..  */
-  #include <X11/extensions/Xinerama.h>
- #endif
-
- #if JUCE_USE_XSHM
-  #include <X11/extensions/XShm.h>
-  #include <sys/shm.h>
-  #include <sys/ipc.h>
- #endif
-
- #if JUCE_USE_XRENDER
-  // If you're missing these headers, try installing the libxrender-dev and libxcomposite-dev
-  #include <X11/extensions/Xrender.h>
-  #include <X11/extensions/Xcomposite.h>
- #endif
-
- #if JUCE_USE_XCURSOR
-  // If you're missing this header, try installing the libxcursor-dev package
-  #include <X11/Xcursor/Xcursor.h>
- #endif
-
  /* Got an include error here?
 
     If you want to install OpenGL support, the packages to get are "mesa-common-dev"
     and "freeglut3-dev".
  */
  #include <GL/glx.h>
-
- #undef SIZEOF
- #undef KeyPress
 
 //==============================================================================
 #elif JUCE_MAC
@@ -211,6 +159,28 @@ static void clearGLError()
     while (glGetError() != GL_NO_ERROR) {}
 }
 
+struct OpenGLTargetSaver
+{
+    OpenGLTargetSaver (const OpenGLContext& c)
+        : context (c), oldFramebuffer (OpenGLFrameBuffer::getCurrentFrameBufferTarget())
+    {
+        glGetIntegerv (GL_VIEWPORT, oldViewport);
+    }
+
+    ~OpenGLTargetSaver()
+    {
+        context.extensions.glBindFramebuffer (GL_FRAMEBUFFER, oldFramebuffer);
+        glViewport (oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
+    }
+
+private:
+    const OpenGLContext& context;
+    GLuint oldFramebuffer;
+    GLint oldViewport[4];
+
+    OpenGLTargetSaver& operator= (const OpenGLTargetSaver&);
+};
+
 //==============================================================================
 #include "opengl/juce_OpenGLFrameBuffer.cpp"
 #include "opengl/juce_OpenGLGraphicsContext.cpp"
@@ -223,7 +193,6 @@ static void clearGLError()
 //==============================================================================
 #if JUCE_MAC || JUCE_IOS
  #include "../juce_core/native/juce_osx_ObjCHelpers.h"
- #include "../juce_core/native/juce_mac_ObjCSuffix.h"
  #include "../juce_graphics/native/juce_mac_CoreGraphicsHelpers.h"
 
  #if JUCE_MAC

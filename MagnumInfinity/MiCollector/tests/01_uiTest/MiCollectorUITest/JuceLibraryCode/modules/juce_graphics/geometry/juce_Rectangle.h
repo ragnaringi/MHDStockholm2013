@@ -42,7 +42,6 @@ class Rectangle
 public:
     //==============================================================================
     /** Creates a rectangle of zero size.
-
         The default co-ordinates will be (0, 0, 0, 0).
     */
     Rectangle() noexcept
@@ -293,6 +292,25 @@ public:
         return *this;
     }
 
+    /** Scales this rectangle by the given amount, centred around the origin. */
+    template <typename FloatType>
+    Rectangle operator* (FloatType scaleFactor) const noexcept
+    {
+        Rectangle r (*this);
+        r *= scaleFactor;
+        return r;
+    }
+
+    /** Scales this rectangle by the given amount, centred around the origin. */
+    template <typename FloatType>
+    Rectangle operator*= (FloatType scaleFactor) noexcept
+    {
+        pos *= scaleFactor;
+        w *= scaleFactor;
+        h *= scaleFactor;
+        return *this;
+    }
+
     /** Expands the rectangle by a given amount.
 
         Effectively, its new size is (x - deltaX, y - deltaY, w + deltaX * 2, h + deltaY * 2).
@@ -319,6 +337,16 @@ public:
         return Rectangle (pos.x - deltaX, pos.y - deltaY, nw, nh);
     }
 
+    /** Returns a rectangle that is larger than this one by a given amount.
+
+        Effectively, the rectangle returned is (x - delta, y - delta, w + delta * 2, h + delta * 2).
+        @see expand, reduce, reduced
+    */
+    Rectangle expanded (const ValueType delta) const noexcept
+    {
+        return expanded (delta, delta);
+    }
+
     /** Shrinks the rectangle by a given amount.
 
         Effectively, its new size is (x + deltaX, y + deltaY, w - deltaX * 2, h - deltaY * 2).
@@ -339,6 +367,16 @@ public:
                        const ValueType deltaY) const noexcept
     {
         return expanded (-deltaX, -deltaY);
+    }
+
+    /** Returns a rectangle that is smaller than this one by a given amount.
+
+        Effectively, the rectangle returned is (x + delta, y + delta, w - delta * 2, h - delta * 2).
+        @see reduce, expand, expanded
+    */
+    Rectangle reduced (const ValueType delta) const noexcept
+    {
+        return reduced (delta, delta);
     }
 
     /** Removes a strip from the top of this rectangle, reducing this rectangle
@@ -438,6 +476,17 @@ public:
     {
         return Point<ValueType> (jlimit (pos.x, pos.x + w, point.x),
                                  jlimit (pos.y, pos.y + h, point.y));
+    }
+
+    /** Returns a point within this rectangle, specified as proportional coordinates.
+        The relative X and Y values should be between 0 and 1, where 0 is the left or
+        top of this rectangle, and 1 is the right or bottom. (Out-of-bounds values
+        will return a point outside the rectangle).
+    */
+    Point<ValueType> getRelativePoint (double relativeX, double relativeY) const noexcept
+    {
+        return Point<ValueType> (pos.x + static_cast <ValueType> (w * relativeX),
+                                 pos.y + static_cast <ValueType> (h * relativeY));
     }
 
     /** Returns true if any part of another rectangle overlaps this one. */
@@ -565,6 +614,23 @@ public:
         return false;
     }
 
+    /** Tries to fit this rectangle within a target area, returning the result.
+
+        If this rectangle is not completely inside the target area, then it'll be
+        shifted (without changing its size) so that it lies within the target. If it
+        is larger than the target rectangle in either dimension, then that dimension
+        will be reduced to fit within the target.
+    */
+    Rectangle constrainedWithin (const Rectangle& areaToFitWithin) const noexcept
+    {
+        const ValueType newW (jmin (w, areaToFitWithin.getWidth()));
+        const ValueType newH (jmin (h, areaToFitWithin.getHeight()));
+
+        return Rectangle (jlimit (areaToFitWithin.getX(), areaToFitWithin.getRight()  - newW, pos.x),
+                          jlimit (areaToFitWithin.getY(), areaToFitWithin.getBottom() - newH, pos.y),
+                          newW, newH);
+    }
+
     /** Returns the smallest rectangle that can contain the shape created by applying
         a transform to this rectangle.
 
@@ -632,6 +698,16 @@ public:
     {
         return Rectangle<float> (static_cast<float> (pos.x), static_cast<float> (pos.y),
                                  static_cast<float> (w),     static_cast<float> (h));
+    }
+
+    /** Casts this rectangle to a Rectangle<double>.
+        Obviously this is mainly useful for rectangles that use integer types.
+        @see getSmallestIntegerContainer
+    */
+    Rectangle<double> toDouble() const noexcept
+    {
+        return Rectangle<double> (static_cast<double> (pos.x), static_cast<double> (pos.y),
+                                  static_cast<double> (w),     static_cast<double> (h));
     }
 
     //==============================================================================

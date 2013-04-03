@@ -13,19 +13,28 @@
 
 //==============================================================================
 MainAppWindow::MainAppWindow()
-    : DocumentWindow (JUCEApplication::getInstance()->getApplicationName(),
-                      Colours::lightgrey,
+    : DocumentWindow ("Magnum Infinity :: UI Test",
+                      Colours::white,
                       DocumentWindow::allButtons)
 {
-    centreWithSize (500, 400);
+
+    appController = new MiAppController();
+
+    centreWithSize (800, 400);
     setVisible (true);
+
+    appController->setup(this);
+    appController->show();
+
 }
 
 MainAppWindow::~MainAppWindow()
 {
+    
 }
 
 void MainAppWindow::closeButtonPressed()
 {
+    appController->shutdown();
     JUCEApplication::getInstance()->systemRequestedQuit();
 }

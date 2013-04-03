@@ -86,11 +86,12 @@ public:
     void setPixelFormat (const OpenGLPixelFormat& preferredPixelFormat) noexcept;
 
     /** Provides a context with which you'd like this context's resources to be shared.
-        The object passed-in here must not be deleted while the context may still be
-        using it! To turn off sharing, you can call this method with a null pointer.
+        The object passed-in here is a platform-dependent native context object, and
+        must not be deleted while this context may still be using it! To turn off sharing,
+        you can call this method with a null pointer.
         Note: This must be called BEFORE attaching your context to a target component!
     */
-    void setContextToShareWith (const OpenGLContext* contextToShareWith) noexcept;
+    void setNativeSharedContext (void* nativeContextToShareWith) noexcept;
 
     //==============================================================================
     /** Attaches the context to a target component.
@@ -128,14 +129,7 @@ public:
     /** Asynchronously causes a repaint to be made. */
     void triggerRepaint();
 
-
     //==============================================================================
-    /** Returns the width of this context */
-    inline int getWidth() const noexcept                    { return width; }
-
-    /** Returns the height of this context */
-    inline int getHeight() const noexcept                   { return height; }
-
     /** If this context is backed by a frame buffer, this returns its ID number,
         or 0 if the context does not use a framebuffer.
     */
@@ -176,6 +170,11 @@ public:
     /** Returns true if this context is currently active for the calling thread. */
     bool isActive() const noexcept;
 
+    /** If any context is active on the current thread, this deactivates it.
+        Note that on some platforms, like Android, this isn't possible.
+    */
+    static void deactivateCurrentContext();
+
     //==============================================================================
     /** Swaps the buffers (if the context can do this).
         There's normally no need to call this directly - the buffers will be swapped
@@ -188,6 +187,8 @@ public:
         The value is the number of frames to allow between buffer-swapping. This is
         fairly system-dependent, but 0 turns off syncing, 1 makes it swap on frame-boundaries,
         and greater numbers indicate that it should swap less often.
+
+        By default, this will be set to 1.
 
         Returns true if it sets the value successfully - some platforms won't support
         this setting.
@@ -220,10 +221,13 @@ public:
                                 used for scaling of the coordinates.
         @param contextHeight    the height of the context or framebuffer that is being drawn into,
                                 used for vertical flipping of the y coordinates.
+        @param textureOriginIsBottomLeft    if true, the texture's origin is treated as being at
+                                (0, 0). If false, it is assumed to be (0, 1)
     */
     void copyTexture (const Rectangle<int>& targetClipArea,
                       const Rectangle<int>& anchorPosAndTextureSize,
-                      int contextWidth, int contextHeight);
+                      int contextWidth, int contextHeight,
+                      bool textureOriginIsBottomLeft);
 
 
     //==============================================================================
@@ -238,13 +242,12 @@ private:
     OpenGLRenderer* renderer;
     ScopedPointer<Attachment> attachment;
     OpenGLPixelFormat pixelFormat;
-    const OpenGLContext* contextToShareWith;
-    int width, height;
+    void* contextToShareWith;
     bool renderComponents;
 
     CachedImage* getCachedImage() const noexcept;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OpenGLContext);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OpenGLContext)
 };
 
 

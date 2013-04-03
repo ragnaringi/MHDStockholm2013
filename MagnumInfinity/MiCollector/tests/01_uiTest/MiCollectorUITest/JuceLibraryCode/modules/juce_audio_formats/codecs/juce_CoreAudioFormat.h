@@ -23,7 +23,7 @@
   ==============================================================================
 */
 
-#if JUCE_MAC || JUCE_IOS
+#if JUCE_MAC || JUCE_IOS || DOXYGEN
 
 //==============================================================================
 /**
@@ -62,7 +62,7 @@ public:
                                         int qualityOptionIndex);
 
 private:
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CoreAudioFormat);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CoreAudioFormat)
 };
 
 #endif

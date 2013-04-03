@@ -94,8 +94,6 @@ public:
     /** Metadata property name used by wav readers and writers for adding
         a BWAV chunk to the file.
 
-        This is a
-
         @see AudioFormatReader::metadataValues, createWriterFor
     */
     static const char* const bwavCodingHistory;
@@ -122,6 +120,8 @@ public:
     AudioFormatReader* createReaderFor (InputStream* sourceStream,
                                         bool deleteStreamIfOpeningFails);
 
+    MemoryMappedAudioFormatReader* createMemoryMappedReader (const File& file);
+
     AudioFormatWriter* createWriterFor (OutputStream* streamToWriteTo,
                                         double sampleRateToUse,
                                         unsigned int numberOfChannels,
@@ -139,5 +139,5 @@ public:
 
 
 private:
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WavAudioFormat);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (WavAudioFormat)
 };

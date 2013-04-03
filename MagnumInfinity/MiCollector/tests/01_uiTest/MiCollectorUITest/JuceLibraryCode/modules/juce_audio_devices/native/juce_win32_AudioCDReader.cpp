@@ -1069,7 +1069,7 @@ bool AudioCDReader::readSamples (int** destSamples, int numDestChannels, int sta
         }
         else
         {
-            const int framesInBuffer = buffer.getSize() / bytesPerFrame;
+            const int framesInBuffer = (int) (buffer.getSize() / bytesPerFrame);
             const int frameNeeded = (int) (startSampleInFile / samplesPerFrame);
 
             if (firstFrameInBuffer + framesInBuffer != frameNeeded)
@@ -1297,7 +1297,7 @@ Array<int> AudioCDReader::findIndexesInTrack (const int trackNumber)
             pos += samplesPerFrame * framesPerIndexRead;
         }
 
-        indexes.removeValue (trackStart);
+        indexes.removeFirstMatchingValue (trackStart);
     }
 
     return indexes;

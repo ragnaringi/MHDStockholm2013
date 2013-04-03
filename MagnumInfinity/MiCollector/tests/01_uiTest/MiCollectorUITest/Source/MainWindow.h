@@ -13,6 +13,8 @@
 
 #include "../JuceLibraryCode/JuceHeader.h"
 
+#include "MiAppController.h"
+
 
 //==============================================================================
 class MainAppWindow   : public DocumentWindow
@@ -33,6 +35,9 @@ public:
     */
 
 private:
+
+    MiAppController *appController;
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainAppWindow)
 };
