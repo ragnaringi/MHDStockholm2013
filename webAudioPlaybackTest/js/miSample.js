@@ -66,13 +66,13 @@
 		setTimeout(function() {
 			this._fadeOut();
 			aNextCallback.call(this);	
-		}.bind(this), Math.floor(this._soundBuffer.duration * 0.8 * 1000));
+		}.bind(this), Math.floor(this._soundBuffer.duration * 0.5 * 1000));
 
 	};
 
 	p._fadeIn = function() {
 
-		var fadeTime = this._soundBuffer.duration * 0.2 * 1000;
+		var fadeTime = this._soundBuffer.duration * 0.5 * 1000;
 		var gain = this._gainNode.gain;
 		var fadingTween = new TWEEN.Tween({ gainEnvelope : 0}).to({ gainEnvelope : 1}, fadeTime).onUpdate(function() {
 			gain.value = this.gainEnvelope;
@@ -82,7 +82,7 @@
 
 	p._fadeOut = function(){
 
-		var fadeTime = this._soundBuffer.duration * 0.2 * 1000;
+		var fadeTime = this._soundBuffer.duration * 0.5 * 1000;
 		var gain = this._gainNode.gain;
 		var fadingTween = new TWEEN.Tween({ gainEnvelope : 1}).to({ gainEnvelope : 0}, fadeTime).onUpdate(function() {
 			gain.value = this.gainEnvelope;
