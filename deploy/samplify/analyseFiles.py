@@ -17,6 +17,15 @@ parser.add_argument('-s', dest="source_folder",
 parser.add_argument('-d', dest="dest_folder",
                    help='a folder where the audio files are output')
 
+parser.add_argument('-min_avg', dest="min_avg",
+                   help='the maximum pitch average deviation for a valid sample. lower (0.2 is a good medium) will give you fewer samples, but more defined notes', default='0.2')
+
+parser.add_argument('-min_duration', dest="min_duration",
+                   help='minimum note duration', default='0.2')
+
+parser.add_argument('-max_duration', dest="max_duration",
+                   help='maximum note duration', default='0.6')
+
 
 args = parser.parse_args()
 
@@ -114,7 +123,7 @@ def processSegment(aSegment):
 
 	avg /= 11
 
-	if (avg < 0.2) and (aSegment.duration > 0.5) and (aSegment.loudness_max > -40):
+	if (avg < args.min_avg) and (aSegment.duration > args.min_duration) and (aSegment.duration < args.max_duration) and (aSegment.loudness_max > -40):
 			print ("found suitable sample, note : " + note)
 			
 			if ((aSegment.duration / aSegment.time_loudness_max) > 0.25 and (aSegment.loudness_max / aSegment.loudness_begin) < 0.8):
