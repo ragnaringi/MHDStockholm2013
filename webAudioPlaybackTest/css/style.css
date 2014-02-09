@@ -1,0 +1,75 @@
+body, html {
+
+	background: #535353;
+	color:#2b2b2b;
+
+	font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+}
+
+#content {
+	position: absolute;
+	width:1024px;
+	height:500px;
+	top:50%;
+	left:50%;
+	margin-left:-512px;
+	margin-top:-250px;
+
+}
+
+#content #title{
+
+	opacity: 0.5;
+	position: relative;
+	top:-50px;
+
+}
+
+#inputSelector {
+
+	width:100%;
+
+
+}
+
+#inputSelector #file_input {
+
+
+}
+
+#loadingMessageContainer {
+	display: none;
+}
+
+#playback {
+	margin-top:3em;
+	display:none;
+}
+
+#playback #keyboard {
+	width:100%;
+	height:300px;
+	position: relative;
+}
+
+#playback #keyboard .note {
+	width:7.5%;
+	height:100%;
+
+	background: white;
+	margin-left:2px;
+
+	border:1px solid white;
+	border-radius: 5px;
+
+	float:left;
+}
+
+#playback #keyboard .note.black {
+	height:75%;
+	
+	background: black;
+
+	border:1px solid black;
+}

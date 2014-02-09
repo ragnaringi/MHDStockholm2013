@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Magnum Infinity WebAudio Playback Test</title>
+
+	<link rel="stylesheet" href="css/style.css"/>
+
+	<script src="js/TWEEN.js"></script>
+
+	<script src="js/miSample.js"></script>
+	<script src="js/miSampleManager.js"></script>
+	<script src="js/miKeyboardController.js"></script>
+	<script src="js/miPlaybackTest.js"></script>
+	<script>
+
+	var core;
+
+	document.addEventListener("DOMContentLoaded", function() {
+
+		core = new miPlaybackTest();
+		core.setup();
+
+		update();
+	});
+
+	function update() {
+
+		requestAnimationFrame(update);
+
+		TWEEN.update();
+	};
+
+	</script>
+
+</head>
+<body>
+
+	<div id="content">
+
+		<h1 id="title">Magnum Infinity WebAudio Playback Test</h1>
+
+		<div id="inputSelector">
+			<h3>Choose Source Folder</h3>
+			<input type="file" id="file_input" webkitdirectory="" directory="">
+		</div>
+
+		<div id="loadingMessageContainer">
+			<h3 id="loadingMessage">Loading samples...</h3>
+		</div>
+
+
+		<div id="playback">
+			<div id="keyboard">
+				<div id="noteC" class="note white">&nbsp;</div>
+				<div id="noteDb" class="note black">&nbsp;</div>
+				<div id="noteD" class="note white">&nbsp;</div>
+				<div id="noteEb" class="note black">&nbsp;</div>
+				<div id="noteE" class="note white">&nbsp;</div>
+				<div id="noteF" class="note white">&nbsp;</div>
+				<div id="noteGb" class="note black">&nbsp;</div>
+				<div id="noteG" class="note white">&nbsp;</div>
+				<div id="noteAb" class="note black">&nbsp;</div>
+				<div id="noteA" class="note white">&nbsp;</div>
+				<div id="noteBb" class="note black">&nbsp;</div>
+				<div id="noteB" class="note white">&nbsp;</div>
+				
+			</div>
+		</div>
+
+
+	</div>
+
+</body>
+</html>
