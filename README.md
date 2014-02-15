@@ -3,7 +3,7 @@
 
 An industrial-scale sample extraction and playback instrument
 
-Created by Ragnar Ingi Hrafnkelsson and Owen Hindley for a Music Hack Day in 2013 at Spotify HQ, Stockholm.
+Created by [Ragnar Ingi Hrafnkelsson]('http://reactifymusic.com', 'Reactify') and [Owen Hindley]('http://www.owenhindley.co.uk', 'Owen Hindley') for a Music Hack Day in 2013 at Spotify HQ, Stockholm.
 
 ## Overview ##
 
