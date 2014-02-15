@@ -196,6 +196,18 @@ def absoluteFilePaths(directory):
            yield os.path.abspath(os.path.join(dirpath, f))
 
 
+def checkOutputFolder():
+	if os.path.exists(args.dest_folder) is False:
+		os.makedirs(args.dest_folder)
+
+	for noteFolder in PITCH_LOOKUP:
+		noteFolderPath = os.path.join(args.dest_folder, noteFolder)
+		if os.path.exists(noteFolderPath) is False:
+			os.makedirs(noteFolderPath)
+
+
+checkOutputFolder()
+
 analyseFiles()
 sortSimilarSamples()
 exportFiles()
