@@ -17,7 +17,7 @@ The idea being that you can feed in any audio, and produce an sampled instrument
 ## Creating Samples ##
 
 
-Samples are generated via a command-line python script, in `/deploy/samplify/analyseFiles.py`.
+Samples are generated via a command-line python script, in `/create-samples/analyseFiles.py`.
 
 This script takes a number of arguments:
 
