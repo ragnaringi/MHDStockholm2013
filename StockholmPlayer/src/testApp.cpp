@@ -22,7 +22,7 @@ void testApp::setup(){
 	
     /* Sample directories are placed in Data folder */
     ofDirectory patchDir(ofToDataPath("", false));
-    patchDir.allowExt("folder");
+    patchDir.allowExt("");
     int numPatches = patchDir.listDir();
     if (numPatches > 0) {
         for (int i = 0; i < numPatches; i++) {
