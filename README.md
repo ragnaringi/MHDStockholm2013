@@ -62,14 +62,23 @@ To use this sample player, make sure to point Xcode to your openFrameworks path.
 Place the output of the sample generator in bin/Data. Example folder structure:
 
 /bin
+
   /Data
+  
     /Artist Name ("Synth patch" name)
+    
       /A
+      
         *.wav   
+        
       /Bb
+      
         *.wav   
+        
       /B
+      
         *.wav 
+        
       etc.
       
 The first sample directory is loaded on start. Use keyboard keys [ A ] through to [ " ] to play notes. Mouse y position controls filter cutoff and loop length. Each time a note is played, it moves through to the next available sample.
