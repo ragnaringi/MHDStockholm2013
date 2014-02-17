@@ -22,12 +22,18 @@ void testApp::setup(){
 	
     /* Sample directories are placed in Data folder */
     ofDirectory patchDir(ofToDataPath("", false));
+    patchDir.allowExt("folder");
     int numPatches = patchDir.listDir();
-    if (numPatches == 0) ofLog(OF_LOG_ERROR, "NO SYNTH PATCH FOUND");
-    for (int i = 0; i < numPatches; i++) {
-        cout << "Synth patches: " << patchDir.getFiles()[i].getFileName() << endl;
+    if (numPatches > 0) {
+        for (int i = 0; i < numPatches; i++) {
+            cout << "Synth patches: " << patchDir.getFiles()[i].getFileName() << endl;
+        }
+        synthpatch = patchDir.getFiles()[0].getFileName();
     }
-    synthpatch = patchDir.getFiles()[0].getFileName();
+    else {
+        ofLog(OF_LOG_ERROR, "NO SYNTH PATCH FOUND");
+    }
+    
     cout << "Current synthpatch: " << synthpatch << endl;
     
     loadSynthPatch();
@@ -57,6 +63,8 @@ void testApp::draw(){
 void testApp::audioRequested 	(float * output, int bufferSize, int nChannels){
 	
 	for (int i = 0; i < bufferSize; i++){
+        
+        if (currentSample == NULL) return;
         
         // Playback
         leftOutput = currentSample->play(1.0, 0, currentSample->length); // mono only
@@ -173,6 +181,7 @@ void testApp::mouseMoved(int x, int y ){
 void testApp::playNote(string key, int index) {
     
     sample[index].getLength();
+    if (sample[index].myDataSize == 0) return;
     currentSample = &sample[index];
 }
 

@@ -1,0 +1,3 @@
+[submodule "StockholmPlayer/Maximilian"]
+	path = StockholmPlayer/Maximilian
+	url = https://github.com/micknoise/Maximilian.git
