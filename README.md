@@ -55,3 +55,21 @@ You can either insert these files into your own player however you wish, but we'
 
 in the folder `webAudioPlayback` you'll find `playback.html`, which allows you to (when run on a local web server) load a folder of samples and play them back both via an on-screen keyboard and your computer's physical keyboard (keys `a` to `j`)
 
+### ofxMaxim Playback (Hack Day project, requires openFrameworks) ###
+
+To use this sample player, make sure to point Xcode to your openFrameworks path. The project has been updated to use the latest (0.8.0) osx release. 
+
+Place the output of the sample generator in bin/Data. Example folder structure:
+
+/bin
+  /Data
+    /Artist Name ("Synth patch" name)
+      /A
+        *.wav   
+      /Bb
+        *.wav   
+      /B
+        *.wav 
+      etc.
+      
+The first sample directory is loaded on start. Use keyboard keys [ A ] through to [ " ] to play notes. Mouse y position controls filter cutoff and loop length. Each time a note is played, it moves through to the next available sample.
