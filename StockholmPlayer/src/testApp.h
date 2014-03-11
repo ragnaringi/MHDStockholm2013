@@ -18,11 +18,14 @@ class testApp : public ofBaseApp{
 		void audioReceived 	(float * input, int bufferSize, int nChannels);
     
         int selectedKey;
+        string notePlaying;
         void playNote (string key, int index);
         void loadNote (string key, int index);
         void loadSynthPatch();
         string synthpatch;
         string currentSamplePaths[11];
+    
+        ofTrueTypeFont font;
 	
 		/* Maximilian */
 	

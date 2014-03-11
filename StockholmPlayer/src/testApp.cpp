@@ -1,6 +1,6 @@
 #include "testApp.h"
 
-//this data will be used to make an envelope. Value and time to value in ms.
+// This data will be used to make a volume envelope. Value and time to value in ms.
 double attackEnvData[4] = {0,0,1,150};
 double decayEnvData[4] =  {1,0,0,150};
 
@@ -19,16 +19,19 @@ testApp::~testApp() {
 
 //--------------------------------------------------------------
 void testApp::setup(){
+    
+    ofTrueTypeFont::setGlobalDpi(72);
+    font.loadFont("GUI/NewMedia Fett.ttf", 52, true, true); //open source font
 	
     /* Sample directories are placed in Data folder */
-    ofDirectory patchDir(ofToDataPath("", false));
+    ofDirectory patchDir(ofToDataPath("SAMPLES", false));
     patchDir.allowExt("");
     int numPatches = patchDir.listDir();
     if (numPatches > 0) {
         for (int i = 0; i < numPatches; i++) {
             cout << "Synth patches: " << patchDir.getFiles()[i].getFileName() << endl;
         }
-        synthpatch = patchDir.getFiles()[0].getFileName();
+        synthpatch = "SAMPLES/" + patchDir.getFiles()[0].getFileName();
     }
     else {
         ofLog(OF_LOG_ERROR, "NO SYNTH PATCH FOUND");
@@ -55,12 +58,18 @@ void testApp::draw(){
 	
     ofBackground(0, 0, 0);
 	ofSetColor(255, 255, 255);
-	ofRect(300, 300, leftOutput*150, leftOutput*150);
-    ofRect(600, 300, rightOutput*150, rightOutput*150);
+    
+    ofDrawBitmapString("Play buttons [ A ] through to [ ' ] on your keyboard", 20.f, 20.f);
+    
+    string playingNote = "Playing Note:";
+    font.drawString(playingNote, ofGetWidth()/2 - (font.stringWidth(playingNote) * .5), int(ofGetHeight()/2.5));
+    
+    string noteSymbol = notePlaying;
+    font.drawString(noteSymbol, ofGetWidth()/2 - (font.stringWidth(noteSymbol) * .5), int(ofGetHeight()/2));
 }
 
 //--------------------------------------------------------------
-void testApp::audioRequested 	(float * output, int bufferSize, int nChannels){
+void testApp::audioRequested(float * output, int bufferSize, int nChannels){
 	
 	for (int i = 0; i < bufferSize; i++){
         
@@ -96,7 +105,7 @@ void testApp::audioRequested 	(float * output, int bufferSize, int nChannels){
 }
 
 //--------------------------------------------------------------
-void testApp::audioReceived (float * input, int bufferSize, int nChannels){
+void testApp::audioReceived(float * input, int bufferSize, int nChannels){
 	
 	/* You can just grab this input and stick it in a double, then use it above to create output*/
 	
@@ -129,6 +138,8 @@ void testApp::keyPressed(int key){
     shouldPlay = true;
     envelope.trigger(0, attackEnvData[0]);
     playNote(notes[index], index);
+    
+    notePlaying = notes[index];
 }
 
 //--------------------------------------------------------------
@@ -160,6 +171,8 @@ void testApp::keyReleased(int key){
     dispatch_after(delay, dispatch_get_main_queue(), ^{
         loadNote(notes[index], index);
     });
+    
+    notePlaying = "";
 }
 
 //--------------------------------------------------------------
