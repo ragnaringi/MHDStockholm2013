@@ -9,6 +9,7 @@ _notes
 # wave & mp3 files
 *.wav
 *.mp3
+*.app
 
 # global ignores
 *.tmproj
@@ -35,6 +36,11 @@ Thumbs.db
 # Folder config file
 Desktop.ini
 .sass-cache
+.DS_Store
+
+*.xcuserstate
+
+*.json
 compass.txt
 note.txt
 /assets/samples/Skrillex/E/sample_E_21.wav
