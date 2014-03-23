@@ -6,6 +6,8 @@ import math
 import json
 import os
 
+from kivy.logger import Logger
+
 config.ECHO_NEST_API_KEY="NMF6CJHDHHDFGO0E8"
 
 PITCH_LOOKUP = ["A", "Bb", "B", "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab"]
@@ -46,7 +48,7 @@ class StockholmAudioAnalyser:
 
 	def analyseFiles(self):
 
-		print "Analysing files in folder : " + self.source_folder
+		Logger.info("Analysing files in folder : " + self.source_folder)
 
 		paths = self.absoluteFilePaths(self.source_folder)
 		for path in paths:
@@ -56,17 +58,17 @@ class StockholmAudioAnalyser:
 
 	def processFile(self, aFilePath):
 
-		print "Analysing file :" + aFilePath
+		Logger.info("Analysing file :" + aFilePath)
 
 		#analyse this track
-		print ("...")
+		Logger.info("...")
 		# t = track.track_from_filename(aFilePath, 'mp3', 1)
-		# print "Got ID : " + t.id
+		# Logger.info "Got ID : " + t.id
 		self.audio_file = audio.LocalAudioFile(aFilePath)
 
 		self.export_segments = []
 
-		print("loaded audio file")
+		Logger.info("loaded audio file")
 		file_analysis = self.audio_file.analysis
 		segments = file_analysis.segments
 		index = 0;
@@ -93,7 +95,7 @@ class StockholmAudioAnalyser:
 		avg /= 11
 
 		if (avg < self.min_avg) and (aSegment.duration > self.min_duration) and (aSegment.duration < self.max_duration) and (aSegment.loudness_max > -40):
-				print ("found suitable sample, note : " + note)
+				Logger.info("found suitable sample, note : " + note)
 				
 				if ((aSegment.duration / aSegment.time_loudness_max) > 0.25 and (aSegment.loudness_max / aSegment.loudness_begin) < 0.8):
 					envelopeType = ENVELOPE_TYPE_SHOT
@@ -140,7 +142,7 @@ class StockholmAudioAnalyser:
 
 	def exportFiles(self):
 
-		print "Checking output folder exists"
+		Logger.info("Checking output folder exists")
 		self.checkOutputFolder()
 
 		for note in self.outputNotes:
@@ -155,7 +157,7 @@ class StockholmAudioAnalyser:
 	# def FFTGroupFiles():
 	# 	for noteFolder in PITCH_LOOKUP:
 	# 		noteFolderPath = os.path.join(self.dest_folder, noteFolder)
-	# 		print("grouping files in " + noteFolderPath)
+	# 		Logger.info("grouping files in " + noteFolderPath)
 	# 		os.system("python fftGroupSamples.py -s " + noteFolderPath)
 
 
@@ -195,7 +197,7 @@ class SampleReference:
 
 		self.filename = "sample_" + self.note + "_" + str(aIndex).zfill(3) + ".wav"
 		destination = os.path.abspath(os.path.join(aDestFolder + "/" + self.note + "/", self.filename))
-		print("saving to path : " + destination)
+		Logger.info("saving to path : " + destination)
 		self.segment.encode(destination)
 
 
