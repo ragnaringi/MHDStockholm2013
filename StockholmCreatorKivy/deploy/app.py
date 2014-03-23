@@ -112,6 +112,11 @@ class MyApp(App):
 		self.consoleOutput.write("Sample analysis complete.")
 		self.consoleOutput.write("Please check your output folder")
 
+		self.layout.remove_widget(self.consoleOutput.widget)
+
+		completeLabel = Label(text="**********************\nSample Analysis Complete\nPlease check your output folder", font_size=24, width=800, size_hint=(None, 0.3), pos=(0,0))
+		self.layout.add_widget(completeLabel)
+
 
 	def showAnalyseButton(self):
 
