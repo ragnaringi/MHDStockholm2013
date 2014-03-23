@@ -1,6 +1,7 @@
 import kivy
 kivy.require('1.8.0') # replace with your current kivy version !
 
+from os.path import sep, expanduser, isdir, dirname
 
 from classes.StockholmAudioAnalyser import StockholmAudioAnalyser, SampleReference
 
@@ -8,7 +9,9 @@ from kivy.app import App
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.gridlayout import GridLayout
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.popup import Popup
+from libs.filebrowser_class import FileBrowser
 
 class LoadDialog(Popup):
 
@@ -27,17 +30,50 @@ class MyApp(App):
 
     def build(self):
 
-    	self.layout = GridLayout(cols=5,rows=5)
+    	self.layout = FloatLayout()
 
     	self.audioAnalyser = None
 
-    	self.goButton = Button(text="Go!", font_size=14)
-    	
-    	self.goButton.bind(on_press=self.doAnalysis)
+    	self.selectSourceButton = Button(text="Select Source Folder", font_size=14, size_hint=(0.2, 0.2), pos_hint={'x' : .2, 'y' : .2})
+    	self.selectSourceButton.bind(on_press=self.onSelectSourceFolderClick)
 
-    	self.layout.add_widget(self.goButton)
+    	self.selectDestinationButton = Button(text="Select Destiation Folder", font_size=14, size_hint=(0.2, 0.2), pos_hint={'x' : .2, 'y' : .6})
+    	self.selectDestinationButton.bind(on_press=self.onSelectDestinationFolderClick)
+
+
+
+    	self.layout.add_widget(self.selectSourceButton)
+    	self.layout.add_widget(self.selectDestinationButton)
+
+    	# self.layout.add_widget(self.createFileBrowser())
     
         return self.layout
+
+
+	def sourceFolderSelectCallback(self):
+
+		print("Opened filebrowser successfully")
+
+	def destFolderSelectCallback(self):
+
+		print("Opened filebrowser successfully")
+	
+
+    def onSelectSourceFolderClick(self, instance):
+
+    	user_path = expanduser('~') + sep + 'Documents'
+        self.fileBrowser = FileBrowser(select_string='Select', favorites=[(user_path, 'Documents')])
+        self.fileBrowser.bind(on_success=self.sourceFolderSelectCallback,on_canceled=self.fBrowserCancelled)
+        self.layout.add_widget(self.fileBrowser)
+
+    def onSelectDestinationFolderClick(self, instance):
+
+		user_path = expanduser('~') + sep + 'Documents'
+		self.fileBrowser = FileBrowser(select_string='Select', favorites=[(user_path, 'Documents')])
+		self.fileBrowser.bind(on_success=self.destFolderSelectCallback,on_canceled=self.fBrowserCancelled)
+		
+		self.layout.add_widget(self.fileBrowser)
+
 
     def doAnalysis(self, instance):
 
@@ -46,8 +82,8 @@ class MyApp(App):
 		self.analyser.sortSimilarSamples()
 		self.analyser.exportFiles()
 
-
-
+	def fBrowserCancelled(self, instance):
+		print("browser cancelled")
 
 if __name__ == '__main__':
-    MyApp().run()
+    
