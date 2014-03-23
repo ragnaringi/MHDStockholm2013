@@ -27,6 +27,8 @@ class StockholmAudioAnalyser:
 		self.min_duration = aMinDuration
 		self.max_duration = aMaxDuration
 
+		self.logger = None
+
 		self.outputlist = {}
 		self.outputNotes = {}
 
@@ -44,11 +46,12 @@ class StockholmAudioAnalyser:
 			i += 1
 
 
-
+	def setConsoleOutput(self, aOutput):
+		self.logger = aOutput
 
 	def analyseFiles(self):
 
-		Logger.info("Analysing files in folder : " + self.source_folder)
+		self.logger.write("Analysing files in folder : " + self.source_folder)
 
 		paths = self.absoluteFilePaths(self.source_folder)
 		for path in paths:
@@ -58,17 +61,20 @@ class StockholmAudioAnalyser:
 
 	def processFile(self, aFilePath):
 
-		Logger.info("Analysing file :" + aFilePath)
+		self.logger.write("Analysing file :" + aFilePath)
 
 		#analyse this track
-		Logger.info("...")
+		self.logger.write("Please wait...")
+		self.logger.write("...")
 		# t = track.track_from_filename(aFilePath, 'mp3', 1)
-		# Logger.info "Got ID : " + t.id
+		# self.logger.write "Got ID : " + t.id
 		self.audio_file = audio.LocalAudioFile(aFilePath)
+
+		self.logger.write("Analysis complete.")
 
 		self.export_segments = []
 
-		Logger.info("loaded audio file")
+		self.logger.write("loaded audio file")
 		file_analysis = self.audio_file.analysis
 		segments = file_analysis.segments
 		index = 0;
@@ -95,7 +101,7 @@ class StockholmAudioAnalyser:
 		avg /= 11
 
 		if (avg < self.min_avg) and (aSegment.duration > self.min_duration) and (aSegment.duration < self.max_duration) and (aSegment.loudness_max > -40):
-				Logger.info("found suitable sample, note : " + note)
+				self.logger.write("found suitable sample, note : " + note)
 				
 				if ((aSegment.duration / aSegment.time_loudness_max) > 0.25 and (aSegment.loudness_max / aSegment.loudness_begin) < 0.8):
 					envelopeType = ENVELOPE_TYPE_SHOT
@@ -142,14 +148,14 @@ class StockholmAudioAnalyser:
 
 	def exportFiles(self):
 
-		Logger.info("Checking output folder exists")
+		self.logger.write("Checking output folder exists")
 		self.checkOutputFolder()
 
 		for note in self.outputNotes:
 			noteGroup = self.outputNotes[note]
 			index = 0
 			for sampleReference in noteGroup:
-				sampleReference.exportFile(self.dest_folder, self.audio_file, index)
+				sampleReference.exportFile(self.dest_folder, self.audio_file, index, self.logger)
 				self.outputlist[sampleReference.note][sampleReference.envelopeType].append(sampleReference.filename)
 				index += 1
 
@@ -157,7 +163,7 @@ class StockholmAudioAnalyser:
 	# def FFTGroupFiles():
 	# 	for noteFolder in PITCH_LOOKUP:
 	# 		noteFolderPath = os.path.join(self.dest_folder, noteFolder)
-	# 		Logger.info("grouping files in " + noteFolderPath)
+	# 		self.logger.write("grouping files in " + noteFolderPath)
 	# 		os.system("python fftGroupSamples.py -s " + noteFolderPath)
 
 
@@ -187,7 +193,7 @@ class SampleReference:
 		self.filename = None
 		self.seg_distance = 0
 
-	def exportFile(self, aDestFolder, aAudioFile, aIndex):
+	def exportFile(self, aDestFolder, aAudioFile, aIndex, aLogger):
 
 		#mark = str(int(self.segment.timbre[0])) + "_" + str(int(self.segment.timbre[1])) + "_" + str(int(self.segment.timbre[2]))
 		mark = str(int(self.seg_distance))
@@ -197,7 +203,7 @@ class SampleReference:
 
 		self.filename = "sample_" + self.note + "_" + str(aIndex).zfill(3) + ".wav"
 		destination = os.path.abspath(os.path.join(aDestFolder + "/" + self.note + "/", self.filename))
-		Logger.info("saving to path : " + destination)
+		aLogger.write("saving to path : " + destination)
 		self.segment.encode(destination)
 
 

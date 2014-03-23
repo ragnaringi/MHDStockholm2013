@@ -212,7 +212,7 @@ analyseFiles()
 sortSimilarSamples()
 exportFiles()
 
-FFTGroupFiles()
+# FFTGroupFiles()
 
 sampleListJSON = json.dumps(outputlist)
 f = open(os.path.join(args.dest_folder, "samples.json"), 'w')
